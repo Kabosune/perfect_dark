@@ -6,6 +6,10 @@
 #include "data.h"
 #include "types.h"
 #include "game/menu.h"
+#include "game/game_1531a0.h"
+#include "game/options.h"
+#include "lib/joy.h"
+#include "gbiex.h"
 #include "weightyaim.h"
 
 /*
@@ -171,6 +175,135 @@ static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct me
 	return 0;
 }
 
+/* ------------------------------------------------------------------------
+ * Look curve graph (drawn live on the Stick Response page)
+ *
+ *   x: how far the stick is pushed, 0 - 100%
+ *   y: look speed (up to Max Turn Speed)
+ *   red band: inner deadzone, green band: past the outer deadzone
+ *   faint diagonal: linear, for comparison
+ *   orange squares: custom curve points
+ *   white line and dot: where your look stick is right now
+ */
+
+static Gfx *weightyAimGraphRect(Gfx *gdl, s32 x1, s32 y1, s32 x2, s32 y2, u32 colour)
+{
+	if (x2 <= x1 || y2 <= y1) {
+		return gdl;
+	}
+
+	gdl = textSetPrimColour(gdl, colour);
+	gDPFillRectangleScaled(gdl++, x1, y1, x2, y2);
+	return gdl;
+}
+
+static Gfx *weightyAimRenderCurveGraph(Gfx *gdl, struct menurendercontext *context)
+{
+	const struct weightyaimstickcfg *sc = weightyAimMenuStickCfg();
+	const s32 gx1 = context->x + 10;
+	const s32 gx2 = context->x + context->width - 10;
+	const s32 gy1 = context->y + 3;
+	const s32 gy2 = context->y + context->height - 3;
+	const s32 gw = gx2 - gx1;
+	const s32 gh = gy2 - gy1;
+	const f32 ymax = sc->turnspeed > 1.f ? sc->turnspeed : 1.f;
+	const bool original = sc->curve == WEIGHTYAIM_CURVE_ORIGINAL;
+	const f32 lo = original ? 0.f : sc->innerdeadzone;
+	const f32 hi = original ? 1.f : (sc->outerdeadzone > lo + 0.05f ? sc->outerdeadzone : lo + 0.05f);
+	s32 prevy = gy2;
+
+	if (gw < 20 || gh < 20) {
+		return gdl;
+	}
+
+#define GX(f) (gx1 + (s32)((f) * gw + 0.5f))
+#define GY(v) (gy2 - (s32)((v) / ymax * gh + 0.5f))
+
+	// background and deadzone bands
+	gdl = weightyAimGraphRect(gdl, gx1, gy1, gx2, gy2, 0x0000207f);
+
+	if (!original) {
+		gdl = weightyAimGraphRect(gdl, gx1, gy1, GX(lo), gy2, 0xff20204f);
+		gdl = weightyAimGraphRect(gdl, GX(hi), gy1, gx2, gy2, 0x20ff203f);
+	}
+
+	// grid at 25 / 50 / 75 %
+	for (s32 g = 1; g < 4; g++) {
+		gdl = weightyAimGraphRect(gdl, GX(g * 0.25f), gy1, GX(g * 0.25f) + 1, gy2, 0xffffff1f);
+		gdl = weightyAimGraphRect(gdl, gx1, GY(g * 0.25f * ymax), gx2, GY(g * 0.25f * ymax) + 1, 0xffffff1f);
+	}
+
+	// frame
+	gdl = weightyAimGraphRect(gdl, gx1, gy1, gx2, gy1 + 1, 0x80c0ffaf);
+	gdl = weightyAimGraphRect(gdl, gx1, gy2 - 1, gx2, gy2, 0x80c0ffaf);
+	gdl = weightyAimGraphRect(gdl, gx1, gy1, gx1 + 1, gy2, 0x80c0ffaf);
+	gdl = weightyAimGraphRect(gdl, gx2 - 1, gy1, gx2, gy2, 0x80c0ffaf);
+
+	// linear reference (dotted)
+	for (s32 i = 0; i <= gw; i += 4) {
+		const f32 f = (f32)i / gw;
+		const s32 y = GY(f);
+		gdl = weightyAimGraphRect(gdl, gx1 + i, y - 1, gx1 + i + 1, y, 0xffffff5f);
+	}
+
+	// custom curve points and their handles
+	if (WEIGHTYAIM_IS_CUSTOM_CURVE(sc->curve)) {
+		const f32 ts = sc->turnspeed;
+		const s32 p1x = GX(lo + sc->bezier[0] * (hi - lo)), p1y = GY(sc->bezier[1] * ts);
+		const s32 p2x = GX(lo + sc->bezier[2] * (hi - lo)), p2y = GY(sc->bezier[3] * ts);
+		const s32 a0x = GX(lo), a0y = gy2;
+		const s32 a1x = GX(hi), a1y = GY(ts);
+
+		for (s32 k = 0; k <= 16; k++) {
+			const f32 t = k / 16.f;
+			const s32 hx1 = a0x + (s32)((p1x - a0x) * t), hy1 = a0y + (s32)((p1y - a0y) * t);
+			const s32 hx2 = a1x + (s32)((p2x - a1x) * t), hy2 = a1y + (s32)((p2y - a1y) * t);
+			gdl = weightyAimGraphRect(gdl, hx1, hy1, hx1 + 1, hy1 + 1, 0xffc0407f);
+			gdl = weightyAimGraphRect(gdl, hx2, hy2, hx2 + 1, hy2 + 1, 0xffc0407f);
+		}
+
+		gdl = weightyAimGraphRect(gdl, p1x - 2, p1y - 2, p1x + 2, p1y + 2, 0xffc040ff);
+		gdl = weightyAimGraphRect(gdl, p2x - 2, p2y - 2, p2x + 2, p2y + 2, 0xffc040ff);
+	}
+
+	// the curve: one column per pixel, joined so steep parts stay solid
+	for (s32 i = 0; i <= gw; i++) {
+		const f32 f = (f32)i / gw;
+		const s32 y = GY(weightyAimCurveOutput(sc, f));
+		const s32 top = y < prevy ? y : prevy;
+		const s32 bottom = y > prevy ? y : prevy;
+
+		gdl = weightyAimGraphRect(gdl, gx1 + i, top - 1, gx1 + i + 1, bottom + 1, 0x40e0ffff);
+		prevy = y;
+	}
+
+	// live marker: where the look stick is right now
+	{
+		const s32 pad = optionsGetContpadNum1(optionsGetExtMenuPlayer());
+		const f32 sx = joyGetStickX(pad) / 127.f;
+		const f32 sy = joyGetStickY(pad) / 127.f;
+		f32 mag = __builtin_sqrtf(sx * sx + sy * sy);
+
+		if (mag > 1.f) {
+			mag = 1.f;
+		}
+
+		if (mag > 0.02f) {
+			const s32 mx = GX(mag);
+			const s32 my = GY(weightyAimCurveOutput(sc, mag));
+
+			gdl = weightyAimGraphRect(gdl, mx, gy1, mx + 1, gy2, 0xffffff8f);
+			gdl = weightyAimGraphRect(gdl, mx - 2, my - 2, mx + 3, my + 3, 0xffffffff);
+		}
+	}
+
+#undef GX
+#undef GY
+
+	gdl = text0f153838(gdl);
+	return gdl;
+}
+
 static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	if (operation == MENUOP_SET) {
@@ -182,6 +315,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, stru
 
 struct menuitem g_WeightyAimStickMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Look Curve", 0, menuhandlerWeightyAimCurve },
+	{ MENUITEMTYPE_CUSTOMRENDER, 0, 0, (intptr_t)weightyAimRenderCurveGraph, 52, NULL },
 	// order must match g_WeightyAimStickSliders
 	WEIGHTYAIM_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
 	WEIGHTYAIM_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
@@ -317,7 +451,7 @@ struct menudialogdef g_WeightyAimAdsMenuDialog = {
 
 static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimFeelMenuItems,  1, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
-	{ g_WeightyAimStickMenuItems, 1, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
+	{ g_WeightyAimStickMenuItems, 2, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
 	{ g_WeightyAimAdsMenuItems,   2, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };

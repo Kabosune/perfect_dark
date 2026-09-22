@@ -900,6 +900,12 @@ void menuCalculateItemSize(struct menuitem *item, s16 *width, s16 *height, struc
 		*width = 130;
 		*height = item->param3;
 		break;
+#ifndef PLATFORM_N64
+	case MENUITEMTYPE_CUSTOMRENDER: // [weightyaim]
+		*width = 200;
+		*height = item->param3;
+		break;
+#endif
 	default:
 		*width = 80;
 		*height = 12;
@@ -1222,6 +1228,7 @@ bool menuIsItemFocusable(struct menuitem *item, struct menudialog *dialog, s32 a
 	case MENUITEMTYPE_CONTROLLER:
 #ifndef PLATFORM_N64
 	case MENUITEMTYPE_COLORBOX:
+	case MENUITEMTYPE_CUSTOMRENDER: // [weightyaim]
 #endif
 		return false;
 	case MENUITEMTYPE_10:

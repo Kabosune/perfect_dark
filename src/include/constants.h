@@ -1697,6 +1697,9 @@
 
 #ifndef PLATFORM_N64
 #define MENUITEMTYPE_COLORBOX    0x1b
+// [weightyaim] draws itself: param2 = Gfx *(*)(Gfx *, struct menurendercontext *),
+// param3 = height in menu pixels
+#define MENUITEMTYPE_CUSTOMRENDER 0x1c
 #endif
 
 #define MENUMODELFLAG_HASSCALE    0x01

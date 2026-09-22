@@ -483,6 +483,44 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, struct wei
 }
 
 /**
+ * The curve on its own (no boost, no state): stick pushed straight right.
+ */
+f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection)
+{
+	f32 n, o, lo, hi;
+	s32 analog;
+
+	deflection = clampf(deflection, 0.f, 1.f);
+
+	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
+		// the game's response, including its small 5-unit safe zone
+		analog = (s32)(deflection * 127.f + 0.5f) - 5;
+		return analog > 0 ? weightyAimStickCurve(analog) : 0.f;
+	}
+
+	lo = clampf(sc->innerdeadzone, 0.f, 0.9f);
+	hi = clampf(sc->outerdeadzone, lo + 0.05f, 1.f);
+	n = clampf((deflection - lo) / (hi - lo), 0.f, 1.f);
+
+	switch (sc->curve) {
+	case WEIGHTYAIM_CURVE_LINEAR:
+		o = n;
+		break;
+	case WEIGHTYAIM_CURVE_CUSTOM1:
+	case WEIGHTYAIM_CURVE_CUSTOM2:
+	case WEIGHTYAIM_CURVE_CUSTOM3:
+		o = weightyAimBezier(sc->bezier, n);
+		break;
+	case WEIGHTYAIM_CURVE_BALANCED:
+	default:
+		o = n * bc_sqrtf(n);
+		break;
+	}
+
+	return o * clampf(sc->turnspeed, 0.1f, 3.f);
+}
+
+/**
  * Scripted look input for repeatable testing, in speed units (-1..1).
  * One cycle is 4.8 seconds:
  *   fast turn right, stop, fast turn left, stop, slow sweep inside the zone, stop.

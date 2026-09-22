@@ -120,6 +120,13 @@ void weightyAimResetStickDefaults(s32 cfgindex);
 void weightyAimAimSettingsChanged(s32 cfgindex);
 void weightyAimSelectCurve(s32 cfgindex, s32 curve);
 void weightyAimCurvePointsChanged(s32 cfgindex);
+
+/*
+ * Look speed (0..max turn speed, before turn boost) for a stick pushed
+ * 'deflection' (0..1) of the way, with this player's curve and deadzones.
+ * Used to draw the curve graph.
+ */
+f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection);
 void weightyAimResetBoostDefaults(s32 cfgindex);
 
 /*

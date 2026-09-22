@@ -4620,6 +4620,10 @@ Gfx *menuitemRender(Gfx *gdl, struct menurendercontext *context)
 
 #ifndef PLATFORM_N64
 	case MENUITEMTYPE_COLORBOX:    return menuitemColorBoxRender(gdl, context);
+	case MENUITEMTYPE_CUSTOMRENDER: // [weightyaim]
+		return context->item->param2
+			? ((Gfx *(*)(Gfx *, struct menurendercontext *))context->item->param2)(gdl, context)
+			: gdl;
 #endif
 
 	}
