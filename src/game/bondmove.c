@@ -41,6 +41,7 @@
 #ifndef PLATFORM_N64
 #include <math.h>
 #include "input.h"
+#include "weightyaim.h" // [weightyaim]
 #include "video.h"
 
 static void bgunProcessQuickDetonate(struct movedata *data, u32 c1buttons, u32 c1buttonsthisframe, u32 buttons1, u32 buttons2) {
@@ -1952,6 +1953,13 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 
 	bmoveApplyMoveData(&movedata);
 
+#ifndef PLATFORM_N64
+	// [weightyaim] Free-aim: look input moves the gun inside a deadzone first,
+	// only the leftover reaches the camera code below.
+	weightyAimFilterLook(&movedata.analogturn, &movedata.analogpitch, &movedata.freelookdx, &movedata.freelookdy,
+			movedata.cannaturalturn && movedata.cannaturalpitch, mlookscale);
+#endif
+
 	// Speed boost
 	// After 3 seconds of holding forward at max speed, apply boost multiplier.
 	// The multiplier starts at 1 and reaches 1.25 after about 0.1 seconds.
@@ -2170,6 +2178,14 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 
 		bgunSetAimType(0);
 
+#ifndef PLATFORM_N64
+		if (weightyAimIsActive()) {
+			// [weightyaim] crosshair follows the gun's free-aim position; the
+			// spring in weightyaim.c already provides the smoothing
+			weightyAimGetCrosshair(&x, &y);
+			bgunSwivel(x, y, 0.f, 0.f);
+		} else
+#endif
 		if (
 				(
 				 movedata.canautoaim

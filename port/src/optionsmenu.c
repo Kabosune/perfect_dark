@@ -18,6 +18,12 @@
 static s32 g_ExtMenuPlayer = 0;
 static struct menudialogdef *g_ExtNextDialog = NULL;
 
+// [weightyaim] lets the Weighty Aim page know which player's settings it is editing
+s32 optionsGetExtMenuPlayer(void)
+{
+	return g_ExtMenuPlayer;
+}
+
 static s32 g_BindIndex = 0;
 static u32 g_BindContKey = 0;
 
@@ -1936,6 +1942,18 @@ static MenuItemHandlerResult menuhandlerOpenGameMenu(s32 operation, struct menui
 	return 0;
 }
 
+// [weightyaim] opens the Weighty Aim page (defined in weightyaimmenu.c) after picking a player
+extern struct menudialogdef g_WeightyAimMenuDialog;
+
+static MenuItemHandlerResult menuhandlerOpenWeightyAimMenu(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		g_ExtNextDialog = &g_WeightyAimMenuDialog;
+		menuPushDialog(&g_ExtendedSelectPlayerMenuDialog);
+	}
+	return 0;
+}
+
 static MenuItemHandlerResult menuhandlerOpenBindsMenu(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	if (operation == MENUOP_SET) {
@@ -1985,6 +2003,15 @@ struct menuitem g_ExtendedMenuItems[] = {
 		(uintptr_t)"Game\n",
 		0,
 		menuhandlerOpenGameMenu,
+	},
+	{
+		// [weightyaim]
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim\n",
+		0,
+		menuhandlerOpenWeightyAimMenu,
 	},
 	{
 		MENUITEMTYPE_SELECTABLE,
