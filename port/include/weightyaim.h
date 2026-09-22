@@ -52,6 +52,11 @@ struct weightyaimcfg {
 #define WEIGHTYAIM_CURVE_CUSTOM   3 // cubic bezier from (0,0) to (1,1), like DS4Windows
 #define WEIGHTYAIM_NUM_CURVES     4
 
+#define WEIGHTYAIM_BOOST_OFF     0
+#define WEIGHTYAIM_BOOST_INSTANT 1 // full boost the moment the stick hits the threshold
+#define WEIGHTYAIM_BOOST_RAMPED  2 // short delay, then ramps up (like Apex Legends / CoD)
+#define WEIGHTYAIM_NUM_BOOSTS    3
+
 /*
  * Look-stick response. Kept separate from the aim presets so switching
  * presets never resets your stick tuning.
@@ -62,11 +67,20 @@ struct weightyaimstickcfg {
 	f32 outerdeadzone;   // 0..1; at or past this the stick reads full
 	f32 bezier[4];       // custom curve control points: x1, y1, x2, y2 (0..1)
 	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate)
+
+	// turn boost: extra turn speed when the stick is held near full deflection
+	s32 boostmode;       // WEIGHTYAIM_BOOST_*
+	f32 boostamount;     // turn speed multiplier at full boost (1 = no boost)
+	f32 boostthreshold;  // how far the stick must be pushed to start boosting (0..1)
+	f32 boostdelay;      // ramped: seconds at the threshold before the boost starts
+	f32 boosttime;       // ramped: seconds to go from no boost to full boost
+	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
 extern struct weightyaimcfg g_WeightyAimCfg[4];
 extern struct weightyaimstickcfg g_WeightyAimStickCfg[4];
 extern const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES];
+extern const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS];
 extern s32 g_WeightyAimDebugLog;       // write per-frame telemetry to weightyaim_log.csv
 extern s32 g_WeightyAimDebugPattern;   // replace look input with a scripted test pattern
 
@@ -75,6 +89,7 @@ extern const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS];
 void weightyAimResetDefaults(s32 cfgindex);
 void weightyAimApplyPreset(s32 cfgindex, s32 preset);
 void weightyAimResetStickDefaults(s32 cfgindex);
+void weightyAimResetBoostDefaults(s32 cfgindex);
 
 /*
  * Hook 1 (bondmove.c, before the look code runs): takes this frame's look

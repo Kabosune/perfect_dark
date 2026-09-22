@@ -52,17 +52,50 @@ const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES] = {
 	"Custom",
 };
 
+const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS] = {
+	"Off",
+	"Instant",
+	"Ramped",
+};
+
 static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
 	.curve = WEIGHTYAIM_CURVE_BALANCED,
 	.innerdeadzone = 0.08f,
 	.outerdeadzone = 0.95f,
 	.bezier = { 0.4f, 0.0f, 0.75f, 1.0f },
 	.turnspeed = 1.f,
+	.boostmode = WEIGHTYAIM_BOOST_RAMPED,
+	.boostamount = 1.8f,
+	.boostthreshold = 0.9f,
+	.boostdelay = 0.12f,
+	.boosttime = 0.3f,
+	.boostvertical = 0.35f,
 };
 
 void weightyAimResetStickDefaults(s32 cfgindex)
 {
-	g_WeightyAimStickCfg[cfgindex & 3] = g_WeightyAimStickDefaults;
+	// curve, deadzones and max speed only; boost has its own reset
+	struct weightyaimstickcfg *sc = &g_WeightyAimStickCfg[cfgindex & 3];
+	const struct weightyaimstickcfg *d = &g_WeightyAimStickDefaults;
+
+	sc->curve = d->curve;
+	sc->innerdeadzone = d->innerdeadzone;
+	sc->outerdeadzone = d->outerdeadzone;
+	memcpy(sc->bezier, d->bezier, sizeof(sc->bezier));
+	sc->turnspeed = d->turnspeed;
+}
+
+void weightyAimResetBoostDefaults(s32 cfgindex)
+{
+	struct weightyaimstickcfg *sc = &g_WeightyAimStickCfg[cfgindex & 3];
+	const struct weightyaimstickcfg *d = &g_WeightyAimStickDefaults;
+
+	sc->boostmode = d->boostmode;
+	sc->boostamount = d->boostamount;
+	sc->boostthreshold = d->boostthreshold;
+	sc->boostdelay = d->boostdelay;
+	sc->boosttime = d->boosttime;
+	sc->boostvertical = d->boostvertical;
 }
 s32 g_WeightyAimDebugLog = 0;
 s32 g_WeightyAimDebugPattern = 0;
@@ -73,6 +106,8 @@ struct weightyaimstate {
 	f32 vel[2];      // spring velocity, degrees/second
 	f32 over[2];     // how far the gun is pushed past the edge of the zone, degrees (drains into camera turn)
 	f32 idletime;    // seconds since the last look input
+	f32 boostheld;   // seconds the stick has been held past the boost threshold
+	f32 boostlevel;  // current turn boost, 0..1
 	f32 swayphase[3];// camera sway oscillator phases (breath, drift, footsteps)
 	f32 sway[2];     // camera sway offset applied last frame, degrees
 	bool active;     // Weighty Aim drove this player's crosshair on the last update
@@ -217,15 +252,57 @@ static f32 weightyAimBezier(const f32 *p, f32 x)
  * Others: radial deadzone (inner/outer) so diagonals behave like straight
  * lines, then the chosen curve applied to how far the stick is pushed.
  */
-static void weightyAimStickRates(const struct weightyaimstickcfg *sc, s32 turn, s32 pitch, f32 *out)
+/**
+ * Turn boost: extra turn speed while the stick is held near full deflection.
+ * Instant jumps straight to full boost; Ramped waits a moment and then builds
+ * up, so quick flicks to the edge stay precise but long holds turn fast.
+ * Looking up/down gets only part of the boost.
+ */
+static void weightyAimApplyBoost(const struct weightyaimstickcfg *sc, struct weightyaimstate *st,
+		f32 deflection, f32 dtsec, f32 *out)
 {
-	f32 rx, ry, mag, n, o, lo, hi;
+	f32 extra;
 
-	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
-		out[0] = weightyAimStickCurve(turn);
-		out[1] = weightyAimStickCurve(pitch);
+	if (sc->boostmode == WEIGHTYAIM_BOOST_OFF) {
+		st->boostheld = 0.f;
+		st->boostlevel = 0.f;
 		return;
 	}
+
+	if (deflection >= clampf(sc->boostthreshold, 0.3f, 1.f) - 0.0001f) {
+		f32 goal = 1.f;
+
+		st->boostheld += dtsec;
+
+		if (sc->boostmode == WEIGHTYAIM_BOOST_RAMPED) {
+			goal = (st->boostheld - sc->boostdelay) / (sc->boosttime > 0.01f ? sc->boosttime : 0.01f);
+			goal = clampf(goal, 0.f, 1.f);
+			goal = goal * goal * (3.f - 2.f * goal); // ease in and out
+		}
+
+		st->boostlevel = goal > st->boostlevel ? goal : st->boostlevel;
+	} else {
+		// let go of the edge: drop the boost quickly but not in a single frame
+		st->boostheld = 0.f;
+		st->boostlevel = clampf(st->boostlevel - dtsec / 0.1f, 0.f, 1.f);
+	}
+
+	extra = (clampf(sc->boostamount, 1.f, 4.f) - 1.f) * st->boostlevel;
+	out[0] *= 1.f + extra;
+	out[1] *= 1.f + extra * clampf(sc->boostvertical, 0.f, 1.f);
+}
+
+/**
+ * Turn the look stick into turn rates in speed units (-1..1 per axis, more with boost).
+ *
+ * Original: the game's own per-axis squared response.
+ * Others: radial deadzone (inner/outer) so diagonals behave like straight
+ * lines, then the chosen curve applied to how far the stick is pushed.
+ */
+static void weightyAimStickRates(const struct weightyaimstickcfg *sc, struct weightyaimstate *st,
+		s32 turn, s32 pitch, f32 dtsec, f32 *out)
+{
+	f32 rx, ry, mag, n, o, lo, hi;
 
 	// PD already subtracted a small 5-unit safe zone; put it back so our own
 	// deadzone is the only one (full deflection is about 127)
@@ -233,8 +310,16 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, s32 turn, 
 	ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? 5 : -5)) / 127.f;
 	mag = bc_sqrtf(rx * rx + ry * ry);
 
+	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
+		out[0] = weightyAimStickCurve(turn);
+		out[1] = weightyAimStickCurve(pitch);
+		weightyAimApplyBoost(sc, st, clampf(mag, 0.f, 1.f), dtsec, out);
+		return;
+	}
+
 	if (mag < 0.0001f) {
 		out[0] = out[1] = 0.f;
+		weightyAimApplyBoost(sc, st, 0.f, dtsec, out);
 		return;
 	}
 
@@ -258,6 +343,7 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, s32 turn, 
 	o *= clampf(sc->turnspeed, 0.1f, 3.f);
 	out[0] = rx / mag * o;
 	out[1] = ry / mag * o;
+	weightyAimApplyBoost(sc, st, n, dtsec, out);
 }
 
 /**
@@ -373,7 +459,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 	// Requested rotation this frame in degrees, exactly as PD would apply it.
 	// Pitch: PD sets speedverta = -(stick + mouse), and +speedverta looks up.
-	weightyAimStickRates(sc, *analogturn, *analogpitch, stickrate);
+	weightyAimStickRates(sc, st, *analogturn, *analogpitch, dtsec, stickrate);
 	stickdeg[0] = stickrate[0] * fovscale * DEG_PER_SPEED_TICK * dt60;
 	mousedeg[0] = *freelookdx * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
 	stickdeg[1] = -stickrate[1] * fovscale * DEG_PER_SPEED_TICK * dt60;
@@ -394,7 +480,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 		// Aim mod off (Classic) but a custom stick response chosen: still apply it.
 		// With analog zeroed, PD computes speed = (freelook * mlookscale) * fovscale.
-		if (canlook && sc->curve != WEIGHTYAIM_CURVE_ORIGINAL) {
+		if (canlook && (sc->curve != WEIGHTYAIM_CURVE_ORIGINAL || st->boostlevel > 0.f)) {
 			*analogturn = 0;
 			*analogpitch = 0;
 			*freelookdx += stickrate[0] / mlookscale;
@@ -684,7 +770,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
 		const s32 i = j + 1;
 		weightyAimResetDefaults(j);
-		weightyAimResetStickDefaults(j);
+		g_WeightyAimStickCfg[j] = g_WeightyAimStickDefaults;
 		configRegisterInt(strFmt("WeightyAim.Player%d.Preset", i), &g_WeightyAimCfg[j].preset, 0, WEIGHTYAIM_NUM_PRESETS - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneX", i), &g_WeightyAimCfg[j].deadzonex, 0.f, 45.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneY", i), &g_WeightyAimCfg[j].deadzoney, 0.f, 45.f);
@@ -708,6 +794,12 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierX2", i), &g_WeightyAimStickCfg[j].bezier[2], 0.f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierY2", i), &g_WeightyAimStickCfg[j].bezier[3], 0.f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickTurnSpeed", i), &g_WeightyAimStickCfg[j].turnspeed, 0.1f, 3.f);
+		configRegisterInt(strFmt("WeightyAim.Player%d.BoostMode", i), &g_WeightyAimStickCfg[j].boostmode, 0, WEIGHTYAIM_NUM_BOOSTS - 1);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostAmount", i), &g_WeightyAimStickCfg[j].boostamount, 1.f, 4.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostThreshold", i), &g_WeightyAimStickCfg[j].boostthreshold, 0.3f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostDelay", i), &g_WeightyAimStickCfg[j].boostdelay, 0.f, 2.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostRampTime", i), &g_WeightyAimStickCfg[j].boosttime, 0.f, 2.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostVertical", i), &g_WeightyAimStickCfg[j].boostvertical, 0.f, 1.f);
 	}
 
 	configRegisterInt("WeightyAim.Debug.Log", &g_WeightyAimDebugLog, 0, 1);

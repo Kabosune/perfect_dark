@@ -9,63 +9,286 @@
 #include "weightyaim.h"
 
 /*
- * "Weighty Aim" page under Options -> Extended.
+ * Options -> Extended -> Weighty Aim
  *
- * Every slider is described by one row in g_WeightyAimSliders, so adding a new
- * tunable is: add a field to struct weightyaimcfg, register it in weightyaim.c,
- * add a row here and a menu item below.
+ *   Preset
+ *   Aim & Camera Feel...   free-aim zone, gun weight, camera lead, sway
+ *   Stick Response...      look curve, deadzones, max turn speed
+ *   Turn Boost...          extra turn speed at full stick
+ *   Crosshair / Laser Sight / Debug Log / Reset
+ *
+ * Sliders are table driven: each page has a table of weightyaimslider rows
+ * that must be in the same order as its slider items. Adding a tunable is:
+ * add the field, register it in weightyaim.c, add a row and a menu item.
  */
 
 extern s32 optionsGetExtMenuPlayer(void);
 
 struct weightyaimslider {
-	size_t offset;    // field in struct weightyaimcfg
-	f32 step;         // value of one slider notch
-	f32 min;          // lowest allowed value
-	const char *fmt;  // printf format for the value shown next to the slider
+	size_t offset;         // field in the page's settings struct
+	f32 step;              // value of one slider notch
+	f32 min;               // lowest allowed value
+	const char *fmt;       // printf format for the value shown next to the slider
 	const char *zerolabel; // shown instead of the number when the value is 0 (optional)
+	s32 percent;           // show value * 100
 };
 
-#define CFGFIELD(f) offsetof(struct weightyaimcfg, f)
-
-// order must match the slider items in g_WeightyAimMenuItems
-static const struct weightyaimslider g_WeightyAimSliders[] = {
-	{ CFGFIELD(deadzonex),     0.5f,  0.f,  "%.1f deg", NULL },
-	{ CFGFIELD(deadzoney),     0.5f,  0.f,  "%.1f deg", NULL },
-	{ CFGFIELD(camerashare),   0.05f, 0.f,  "%.0f%%",   NULL },
-	{ CFGFIELD(cameralead),    0.1f,  0.f,  "%.1f",     "Off" },
-	{ CFGFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off" },
-	{ CFGFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL },
-	{ CFGFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL },
-	{ CFGFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL },
-	{ CFGFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL },
-	{ CFGFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off" },
-	{ CFGFIELD(camerasway),    0.05f, 0.f,  "%.2f deg", "Off" },
-	{ CFGFIELD(walksway),      0.1f,  0.f,  "%.1f deg", "Off" },
+struct weightyaimsliderpage {
+	struct menuitem *items;                 // the page's menu items
+	s32 firstslider;                        // index of the first slider item
+	const struct weightyaimslider *sliders; // one row per slider, in order
+	s32 numsliders;
+	void *(*getcfg)(void);                  // settings struct being edited
+	void (*onchange)(s32 sliderindex);      // optional: called after a slider moves
 };
 
-#define FIRST_SLIDER_ITEM 1
-
-extern struct menuitem g_WeightyAimMenuItems[];
+#define AIMFIELD(f)   offsetof(struct weightyaimcfg, f)
+#define STICKFIELD(f) offsetof(struct weightyaimstickcfg, f)
 
 static inline struct weightyaimcfg *weightyAimMenuCfg(void)
 {
 	return &g_WeightyAimCfg[optionsGetExtMenuPlayer() & 3];
 }
 
+static inline struct weightyaimstickcfg *weightyAimMenuStickCfg(void)
+{
+	return &g_WeightyAimStickCfg[optionsGetExtMenuPlayer() & 3];
+}
+
+static void *weightyAimMenuCfgVoid(void)      { return weightyAimMenuCfg(); }
+static void *weightyAimMenuStickCfgVoid(void) { return weightyAimMenuStickCfg(); }
+
+static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data);
+
+#define WEIGHTYAIM_SLIDER(label, notches) \
+	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimSlider }
+
+#define WEIGHTYAIM_BACK \
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL }, \
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_SELECTABLE_CLOSESDIALOG, L_OPTIONS_213, 0, NULL }, \
+	{ MENUITEMTYPE_END }
+
+/* ------------------------------------------------------------------------
+ * Aim & Camera Feel
+ */
+
+static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
+	{ AIMFIELD(deadzonex),     0.5f,  0.f,  "%.1f deg", NULL,  0 },
+	{ AIMFIELD(deadzoney),     0.5f,  0.f,  "%.1f deg", NULL,  0 },
+	{ AIMFIELD(camerashare),   0.05f, 0.f,  "%.0f%%",   NULL,  1 },
+	{ AIMFIELD(cameralead),    0.1f,  0.f,  "%.1f",     "Off", 0 },
+	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
+	{ AIMFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off", 0 },
+	{ AIMFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL,  0 },
+	{ AIMFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL,  0 },
+	{ AIMFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL,  0 },
+	{ AIMFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL,  0 },
+	{ AIMFIELD(camerasway),    0.05f, 0.f,  "%.2f deg", "Off", 0 },
+	{ AIMFIELD(walksway),      0.1f,  0.f,  "%.1f deg", "Off", 0 },
+};
+
+struct menuitem g_WeightyAimFeelMenuItems[] = {
+	// order must match g_WeightyAimFeelSliders
+	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),   // 0 - 20 deg
+	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),  // 0 - 15 deg
+	WEIGHTYAIM_SLIDER("Camera Share", 20),          // 0 - 100 %
+	WEIGHTYAIM_SLIDER("Camera Lead", 30),           // 0 - 3
+	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
+	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),       // 0 - 5
+	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),        // 0 - 2 s
+	WEIGHTYAIM_SLIDER("Gun Response", 40),          // 1 - 20 Hz
+	WEIGHTYAIM_SLIDER("Gun Damping", 30),           // 0.1 - 1.5
+	WEIGHTYAIM_SLIDER("Turn Drag", 20),             // 0 - 1
+	WEIGHTYAIM_SLIDER("Camera Sway", 30),           // 0 - 1.5 deg
+	WEIGHTYAIM_SLIDER("Walk Sway", 30),             // 0 - 3 deg
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimFeelMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Aim & Camera Feel",
+	g_WeightyAimFeelMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+static void weightyAimFeelChanged(s32 sliderindex)
+{
+	weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM; // hand-tuned now
+}
+
+/* ------------------------------------------------------------------------
+ * Stick Response
+ */
+
+static const struct weightyaimslider g_WeightyAimStickSliders[] = {
+	{ STICKFIELD(innerdeadzone), 0.01f, 0.f,   "%.0f%%", NULL, 1 },
+	{ STICKFIELD(outerdeadzone), 0.01f, 0.1f,  "%.0f%%", NULL, 1 },
+	{ STICKFIELD(turnspeed),     0.05f, 0.25f, "%.2fx",  NULL, 0 },
+	{ STICKFIELD(bezier[0]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
+	{ STICKFIELD(bezier[1]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
+	{ STICKFIELD(bezier[2]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
+	{ STICKFIELD(bezier[3]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
+};
+
+#define STICK_FIRST_BEZIER_SLIDER 3
+
+static void weightyAimStickChanged(s32 sliderindex)
+{
+	// moving a curve point switches to the custom curve so you see the change
+	if (sliderindex >= STICK_FIRST_BEZIER_SLIDER) {
+		weightyAimMenuStickCfg()->curve = WEIGHTYAIM_CURVE_CUSTOM;
+	}
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_CURVES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimCurveNames[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuStickCfg()->curve = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuStickCfg()->curve;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimResetStickDefaults(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+struct menuitem g_WeightyAimStickMenuItems[] = {
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Look Curve", 0, menuhandlerWeightyAimCurve },
+	// order must match g_WeightyAimStickSliders
+	WEIGHTYAIM_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
+	WEIGHTYAIM_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
+	WEIGHTYAIM_SLIDER("Max Turn Speed", 50),     // 0.25 - 2.5x
+	WEIGHTYAIM_SLIDER("Custom Curve X1", 20),    // 0 - 1
+	WEIGHTYAIM_SLIDER("Custom Curve Y1", 20),
+	WEIGHTYAIM_SLIDER("Custom Curve X2", 20),
+	WEIGHTYAIM_SLIDER("Custom Curve Y2", 20),
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Stick Response\n", 0, menuhandlerWeightyAimStickReset },
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimStickMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Stick Response",
+	g_WeightyAimStickMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+/* ------------------------------------------------------------------------
+ * Turn Boost
+ */
+
+static const struct weightyaimslider g_WeightyAimBoostSliders[] = {
+	{ STICKFIELD(boostamount),    0.05f, 1.f,  "%.2fx",  NULL,  0 },
+	{ STICKFIELD(boostthreshold), 0.01f, 0.5f, "%.0f%%", NULL,  1 },
+	{ STICKFIELD(boostdelay),     0.02f, 0.f,  "%.2fs",  "None", 0 },
+	{ STICKFIELD(boosttime),      0.05f, 0.f,  "%.2fs",  "None", 0 },
+	{ STICKFIELD(boostvertical),  0.05f, 0.f,  "%.0f%%", "Off",  1 },
+};
+
+static MenuItemHandlerResult menuhandlerWeightyAimBoostMode(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_BOOSTS;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimBoostNames[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuStickCfg()->boostmode = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuStickCfg()->boostmode;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimBoostReset(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimResetBoostDefaults(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+struct menuitem g_WeightyAimBoostMenuItems[] = {
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Turn Boost", 0, menuhandlerWeightyAimBoostMode },
+	// order must match g_WeightyAimBoostSliders
+	WEIGHTYAIM_SLIDER("Boost Speed", 60),        // 1 - 3x
+	WEIGHTYAIM_SLIDER("Stick Threshold", 100),   // 50 - 100 %
+	WEIGHTYAIM_SLIDER("Boost Delay", 25),        // 0 - 0.5 s (Ramped)
+	WEIGHTYAIM_SLIDER("Ramp-Up Time", 20),       // 0 - 1 s (Ramped)
+	WEIGHTYAIM_SLIDER("Vertical Boost", 20),     // 0 - 100 %
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Turn Boost\n", 0, menuhandlerWeightyAimBoostReset },
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimBoostMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Turn Boost",
+	g_WeightyAimBoostMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+/* ------------------------------------------------------------------------
+ * Shared slider handler
+ */
+
+static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
+	{ g_WeightyAimFeelMenuItems,  0, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimStickMenuItems, 1, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
+	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
+};
+
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
 {
-	const s32 index = (s32)(item - g_WeightyAimMenuItems) - FIRST_SLIDER_ITEM;
+	const struct weightyaimsliderpage *page = NULL;
 	const struct weightyaimslider *sl;
+	s32 index = -1;
 	f32 *field;
 	f32 value;
 
-	if (index < 0 || index >= (s32)ARRAYCOUNT(g_WeightyAimSliders)) {
+	for (s32 p = 0; p < (s32)ARRAYCOUNT(g_WeightyAimSliderPages); p++) {
+		const struct weightyaimsliderpage *pg = &g_WeightyAimSliderPages[p];
+		const s32 i = (s32)(item - pg->items) - pg->firstslider;
+
+		if (item >= pg->items && i >= 0 && i < pg->numsliders) {
+			page = pg;
+			index = i;
+			break;
+		}
+	}
+
+	if (!page) {
 		return 0;
 	}
 
-	sl = &g_WeightyAimSliders[index];
-	field = (f32 *)((u8 *)weightyAimMenuCfg() + sl->offset);
+	sl = &page->sliders[index];
+	field = (f32 *)((u8 *)page->getcfg() + sl->offset);
 
 	switch (operation) {
 	case MENUOP_GETSLIDER:
@@ -74,7 +297,9 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
 	case MENUOP_SET:
 		value = data->slider.value * sl->step;
 		*field = value < sl->min ? sl->min : value;
-		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM; // hand-tuned now
+		if (page->onchange) {
+			page->onchange(index);
+		}
 		break;
 	case MENUOP_GETSLIDERLABEL:
 		value = data->slider.value * sl->step;
@@ -83,16 +308,18 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
 		}
 		if (sl->zerolabel && value <= 0.f) {
 			strcpy(data->slider.label, sl->zerolabel);
-		} else if (strchr(sl->fmt, '%') != strrchr(sl->fmt, '%')) {
-			sprintf(data->slider.label, sl->fmt, value * 100.f); // "%.0f%%": show as a percentage
 		} else {
-			sprintf(data->slider.label, sl->fmt, value);
+			sprintf(data->slider.label, sl->fmt, sl->percent ? value * 100.f : value);
 		}
 		break;
 	}
 
 	return 0;
 }
+
+/* ------------------------------------------------------------------------
+ * Main Weighty Aim page
+ */
 
 static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct menuitem *item, union handlerdata *data)
 {
@@ -174,240 +401,21 @@ static MenuItemHandlerResult menuhandlerWeightyAimReset(s32 operation, struct me
 	return 0;
 }
 
-/*
- * Stick Response sub-page
- */
-
-#define STICKFIELD(f) offsetof(struct weightyaimstickcfg, f)
-
-// order must match the slider items in g_WeightyAimStickMenuItems
-static const struct weightyaimslider g_WeightyAimStickSliders[] = {
-	{ STICKFIELD(innerdeadzone),  0.01f, 0.f,   "%.0f%%", NULL },
-	{ STICKFIELD(outerdeadzone),  0.01f, 0.1f,  "%.0f%%", NULL },
-	{ STICKFIELD(bezier[0]),      0.05f, 0.f,   "%.2f",   NULL },
-	{ STICKFIELD(bezier[1]),      0.05f, 0.f,   "%.2f",   NULL },
-	{ STICKFIELD(bezier[2]),      0.05f, 0.f,   "%.2f",   NULL },
-	{ STICKFIELD(bezier[3]),      0.05f, 0.f,   "%.2f",   NULL },
-	{ STICKFIELD(turnspeed),      0.05f, 0.25f, "%.2fx",  NULL },
-};
-
-#define FIRST_STICK_SLIDER_ITEM 1
-
-extern struct menuitem g_WeightyAimStickMenuItems[];
-
-static inline struct weightyaimstickcfg *weightyAimMenuStickCfg(void)
-{
-	return &g_WeightyAimStickCfg[optionsGetExtMenuPlayer() & 3];
-}
-
-static MenuItemHandlerResult menuhandlerWeightyAimStickSlider(s32 operation, struct menuitem *item, union handlerdata *data)
-{
-	const s32 index = (s32)(item - g_WeightyAimStickMenuItems) - FIRST_STICK_SLIDER_ITEM;
-	const struct weightyaimslider *sl;
-	f32 *field;
-	f32 value;
-
-	if (index < 0 || index >= (s32)ARRAYCOUNT(g_WeightyAimStickSliders)) {
-		return 0;
-	}
-
-	sl = &g_WeightyAimStickSliders[index];
-	field = (f32 *)((u8 *)weightyAimMenuStickCfg() + sl->offset);
-
-	switch (operation) {
-	case MENUOP_GETSLIDER:
-		data->slider.value = (u32)(*field / sl->step + 0.5f);
-		break;
-	case MENUOP_SET:
-		value = data->slider.value * sl->step;
-		*field = value < sl->min ? sl->min : value;
-		// moving a curve point switches to the custom curve so you see the change
-		if (index >= 2 && index <= 5) {
-			weightyAimMenuStickCfg()->curve = WEIGHTYAIM_CURVE_CUSTOM;
-		}
-		break;
-	case MENUOP_GETSLIDERLABEL:
-		value = data->slider.value * sl->step;
-		if (value < sl->min) {
-			value = sl->min;
-		}
-		sprintf(data->slider.label, sl->fmt, index < 2 ? value * 100.f : value);
-		break;
-	}
-
-	return 0;
-}
-
-static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct menuitem *item, union handlerdata *data)
-{
-	switch (operation) {
-	case MENUOP_GETOPTIONCOUNT:
-		data->dropdown.value = WEIGHTYAIM_NUM_CURVES;
-		break;
-	case MENUOP_GETOPTIONTEXT:
-		return (intptr_t)g_WeightyAimCurveNames[data->dropdown.value];
-	case MENUOP_SET:
-		weightyAimMenuStickCfg()->curve = data->dropdown.value;
-		break;
-	case MENUOP_GETSELECTEDINDEX:
-		data->dropdown.value = weightyAimMenuStickCfg()->curve;
-		break;
-	}
-
-	return 0;
-}
-
-static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, struct menuitem *item, union handlerdata *data)
-{
-	if (operation == MENUOP_SET) {
-		weightyAimResetStickDefaults(optionsGetExtMenuPlayer());
-	}
-
-	return 0;
-}
-
-#define WEIGHTYAIM_STICK_SLIDER(label, notches) \
-	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimStickSlider }
-
-struct menuitem g_WeightyAimStickMenuItems[] = {
-	{
-		MENUITEMTYPE_DROPDOWN,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Look Curve",
-		0,
-		menuhandlerWeightyAimCurve,
-	},
-	// sliders: order must match g_WeightyAimStickSliders
-	WEIGHTYAIM_STICK_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
-	WEIGHTYAIM_STICK_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
-	WEIGHTYAIM_STICK_SLIDER("Custom Curve X1", 20),    // 0 - 1
-	WEIGHTYAIM_STICK_SLIDER("Custom Curve Y1", 20),
-	WEIGHTYAIM_STICK_SLIDER("Custom Curve X2", 20),
-	WEIGHTYAIM_STICK_SLIDER("Custom Curve Y2", 20),
-	WEIGHTYAIM_STICK_SLIDER("Max Turn Speed", 50),     // 0.25 - 2.5x
-	{
-		MENUITEMTYPE_SELECTABLE,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Reset Stick Settings\n",
-		0,
-		menuhandlerWeightyAimStickReset,
-	},
-	{
-		MENUITEMTYPE_SEPARATOR,
-		0,
-		0,
-		0,
-		0,
-		NULL,
-	},
-	{
-		MENUITEMTYPE_SELECTABLE,
-		0,
-		MENUITEMFLAG_SELECTABLE_CLOSESDIALOG,
-		L_OPTIONS_213, // "Back"
-		0,
-		NULL,
-	},
-	{ MENUITEMTYPE_END },
-};
-
-struct menudialogdef g_WeightyAimStickMenuDialog = {
-	MENUDIALOGTYPE_DEFAULT,
-	(uintptr_t)"Stick Response",
-	g_WeightyAimStickMenuItems,
-	NULL,
-	MENUDIALOGFLAG_LITERAL_TEXT,
-	NULL,
-};
-
-/*
- * Main Weighty Aim page
- */
-
-#define WEIGHTYAIM_SLIDER(label, notches) \
-	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimSlider }
+#define WEIGHTYAIM_SUBPAGE(label, dialog) \
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG, (uintptr_t)(label), 0, (void *)&(dialog) }
 
 struct menuitem g_WeightyAimMenuItems[] = {
-	{
-		MENUITEMTYPE_DROPDOWN,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Preset",
-		0,
-		menuhandlerWeightyAimPreset,
-	},
-	// sliders: order must match g_WeightyAimSliders
-	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),     // 0 - 20 deg
-	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),    // 0 - 15 deg
-	WEIGHTYAIM_SLIDER("Camera Share", 20),            // 0 - 100 %
-	WEIGHTYAIM_SLIDER("Camera Lead", 30),             // 0 - 3
-	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),         // 0 - 5
-	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),          // 0 - 2 s
-	WEIGHTYAIM_SLIDER("Gun Response", 40),            // 1 - 20 Hz
-	WEIGHTYAIM_SLIDER("Gun Damping", 30),             // 0.1 - 1.5
-	WEIGHTYAIM_SLIDER("Turn Drag", 20),               // 0 - 1
-	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),          // 0 - 0.5 s
-	WEIGHTYAIM_SLIDER("Camera Sway", 30),             // 0 - 1.5 deg
-	WEIGHTYAIM_SLIDER("Walk Sway", 30),               // 0 - 3 deg
-	{
-		MENUITEMTYPE_DROPDOWN,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Crosshair",
-		0,
-		menuhandlerWeightyAimCrosshair,
-	},
-	{
-		MENUITEMTYPE_CHECKBOX,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Laser Sight",
-		0,
-		menuhandlerWeightyAimLaser,
-	},
-	{
-		MENUITEMTYPE_SELECTABLE,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG,
-		(uintptr_t)"Stick Response...\n",
-		0,
-		(void *)&g_WeightyAimStickMenuDialog,
-	},
-	{
-		MENUITEMTYPE_CHECKBOX,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Debug Log",
-		0,
-		menuhandlerWeightyAimDebugLog,
-	},
-	{
-		MENUITEMTYPE_SELECTABLE,
-		0,
-		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Reset to Weighty Preset\n",
-		0,
-		menuhandlerWeightyAimReset,
-	},
-	{
-		MENUITEMTYPE_SEPARATOR,
-		0,
-		0,
-		0,
-		0,
-		NULL,
-	},
-	{
-		MENUITEMTYPE_SELECTABLE,
-		0,
-		MENUITEMFLAG_SELECTABLE_CLOSESDIALOG,
-		L_OPTIONS_213, // "Back"
-		0,
-		NULL,
-	},
-	{ MENUITEMTYPE_END },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Preset", 0, menuhandlerWeightyAimPreset },
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
+	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Turn Boost...\n", g_WeightyAimBoostMenuDialog),
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair", 0, menuhandlerWeightyAimCrosshair },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Sight", 0, menuhandlerWeightyAimLaser },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Debug Log", 0, menuhandlerWeightyAimDebugLog },
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset to Weighty Preset\n", 0, menuhandlerWeightyAimReset },
+	WEIGHTYAIM_BACK,
 };
 
 // "Player 1" at the start: the player select dialog overwrites character 7
