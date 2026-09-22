@@ -32,8 +32,7 @@ struct weightyaimslider {
 static const struct weightyaimslider g_WeightyAimSliders[] = {
 	{ CFGFIELD(deadzonex),     0.5f,  0.f,  "%.1f deg", NULL },
 	{ CFGFIELD(deadzoney),     0.5f,  0.f,  "%.1f deg", NULL },
-	{ CFGFIELD(stickaimspeed), 0.05f, 0.f,  "%.2fx",    NULL },
-	{ CFGFIELD(mouseaimspeed), 0.05f, 0.f,  "%.2fx",    NULL },
+	{ CFGFIELD(camerashare),   0.05f, 0.f,  "%.0f%%",   NULL },
 	{ CFGFIELD(cameralead),    0.1f,  0.f,  "%.1f",     "Off" },
 	{ CFGFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off" },
 	{ CFGFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL },
@@ -84,6 +83,8 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
 		}
 		if (sl->zerolabel && value <= 0.f) {
 			strcpy(data->slider.label, sl->zerolabel);
+		} else if (strchr(sl->fmt, '%') != strrchr(sl->fmt, '%')) {
+			sprintf(data->slider.label, sl->fmt, value * 100.f); // "%.0f%%": show as a percentage
 		} else {
 			sprintf(data->slider.label, sl->fmt, value);
 		}
@@ -131,6 +132,20 @@ static MenuItemHandlerResult menuhandlerWeightyAimCrosshair(s32 operation, struc
 		break;
 	case MENUOP_GETSELECTEDINDEX:
 		data->dropdown.value = weightyAimMenuCfg()->crosshair;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimLaser(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return weightyAimMenuCfg()->laser;
+	case MENUOP_SET:
+		weightyAimMenuCfg()->laser = data->checkbox.value;
+		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM;
 		break;
 	}
 
@@ -326,8 +341,7 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	// sliders: order must match g_WeightyAimSliders
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),     // 0 - 20 deg
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),    // 0 - 15 deg
-	WEIGHTYAIM_SLIDER("Gun Speed (Stick)", 40),       // 0 - 2x
-	WEIGHTYAIM_SLIDER("Gun Speed (Mouse)", 40),       // 0 - 2x
+	WEIGHTYAIM_SLIDER("Camera Share", 20),            // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Camera Lead", 30),             // 0 - 3
 	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),         // 0 - 5
 	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),          // 0 - 2 s
@@ -344,6 +358,14 @@ struct menuitem g_WeightyAimMenuItems[] = {
 		(uintptr_t)"Crosshair",
 		0,
 		menuhandlerWeightyAimCrosshair,
+	},
+	{
+		MENUITEMTYPE_CHECKBOX,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Laser Sight",
+		0,
+		menuhandlerWeightyAimLaser,
 	},
 	{
 		MENUITEMTYPE_SELECTABLE,

@@ -52,6 +52,9 @@
 #include "lib/anim.h"
 #include "lib/lib_317f0.h"
 #include "data.h"
+#ifndef PLATFORM_N64
+#include "weightyaim.h" // [weightyaim]
+#endif
 #include "types.h"
 #ifndef PLATFORM_N64
 #include "game/stagetable.h"
@@ -8096,6 +8099,11 @@ void bgun0f0a5550(s32 handnum)
 	if (PLAYERCOUNT() == 1 && IS8MB() && hand->visible
 			&& weaponnum >= WEAPON_FALCON2 && weaponnum <= WEAPON_FALCON2_SCOPE) {
 		bgunUpdateLasersight(hand, modeldef, handnum, mtxallocation);
+#ifndef PLATFORM_N64
+	} else if (weightyAimLaserWanted(hand, handnum, weaponnum)) {
+		// [weightyaim] RE4-style laser sight on every gun
+		weightyAimUpdateLaser(hand, handnum);
+#endif
 	} else {
 		lasersightFree(handnum);
 	}

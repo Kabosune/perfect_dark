@@ -31,8 +31,8 @@ struct weightyaimcfg {
 	s32 preset;          // WEIGHTYAIM_PRESET_*; CLASSIC turns the mod off
 	f32 deadzonex;       // half-width of the free-aim zone, degrees
 	f32 deadzoney;       // half-height of the free-aim zone, degrees
-	f32 stickaimspeed;   // how fast the stick moves the gun inside the zone (1 = same as turning)
-	f32 mouseaimspeed;   // same for the mouse
+	f32 camerashare;     // share of every look movement that turns the camera directly (0..1);
+	                     // the rest moves the gun, so gun + camera always add up to your input
 	f32 cameralead;      // camera drifts toward the gun while aiming inside the zone (per second at the edge)
 	f32 recenterspeed;   // how fast the camera catches up to the gun when idle (per second, 0 = never)
 	f32 recenterdelay;   // seconds without look input before catch-up starts
@@ -43,6 +43,7 @@ struct weightyaimcfg {
 	f32 camerasway;      // idle breathing sway of the camera, degrees
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*
+	s32 laser;           // RE4-style laser sight on every gun: full beam to a bigger, brighter dot
 };
 
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
@@ -96,5 +97,19 @@ void weightyAimGetCrosshair(f32 *x, f32 *y);
  * (crosshair set to "only when aiming" and the player is hip-firing).
  */
 bool weightyAimHideCrosshair(void);
+
+/*
+ * Hook 4 (bondgun.c, per hand each frame): true if Weighty Aim wants a laser
+ * sight on this gun; weightyAimUpdateLaser() then places the beam and dot.
+ */
+struct hand;
+bool weightyAimLaserWanted(struct hand *hand, s32 handnum, s32 weaponnum);
+void weightyAimUpdateLaser(struct hand *hand, s32 handnum);
+
+/*
+ * Hook 5 (gunfx.c, laser rendering): true when the enhanced laser look is on
+ * for the current player (also upgrades the Falcon 2's built-in laser).
+ */
+bool weightyAimLaserEnhanced(void);
 
 #endif

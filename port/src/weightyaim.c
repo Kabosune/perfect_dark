@@ -8,6 +8,9 @@
 #include "bss.h"
 #include <math.h>
 #include "lib/vi.h"
+#include "lib/mtx.h"
+#include "game/camera.h"
+#include "game/gunfx.h"
 #include "config.h"
 #include "system.h"
 #include "utils.h"
@@ -94,8 +97,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.preset = WEIGHTYAIM_PRESET_WEIGHTY,
 	.deadzonex = 8.5f,
 	.deadzoney = 5.f,
-	.stickaimspeed = 0.38f,
-	.mouseaimspeed = 0.95f,
+	.camerashare = 0.3f,
 	.cameralead = 0.9f,
 	.recenterspeed = 1.f,
 	.recenterdelay = 0.25f,
@@ -106,6 +108,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.camerasway = 0.12f,
 	.walksway = 0.35f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
+	.laser = 0,
 };
 
 // Immersive: wide zone, heavy flowing gun, a camera that follows and never sits still
@@ -113,8 +116,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.preset = WEIGHTYAIM_PRESET_IMMERSIVE,
 	.deadzonex = 11.f,
 	.deadzoney = 6.5f,
-	.stickaimspeed = 0.33f,
-	.mouseaimspeed = 0.85f,
+	.camerashare = 0.35f,
 	.cameralead = 1.4f,
 	.recenterspeed = 1.3f,
 	.recenterdelay = 0.15f,
@@ -125,6 +127,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.camerasway = 0.45f,
 	.walksway = 1.1f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_AIMONLY,
+	.laser = 1,
 };
 
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
@@ -400,38 +403,36 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	} else {
 		const f32 zx = clampf(cfg->deadzonex, 0.05f, 45.f);
 		const f32 zy = clampf(cfg->deadzoney, 0.05f, 45.f);
-		f32 move[2];
-		f32 reqlen, movelen, ellipse;
+		f32 reqlen, ellipse;
 
-		// 1. Look input moves the gun first, at its own speed
-		move[0] = stickdeg[0] * cfg->stickaimspeed + mousedeg[0] * cfg->mouseaimspeed;
-		move[1] = stickdeg[1] * cfg->stickaimspeed + mousedeg[1] * cfg->mouseaimspeed;
+		// 1. Every look movement is split: part turns the camera right away (so the
+		//    view always answers the stick), the rest moves the gun inside the zone.
+		//    The two always add up to exactly the input, so aim speed never changes.
+		const f32 share = clampf(cfg->camerashare, 0.f, 1.f);
+		const f32 drag = clampf(cfg->turndrag, 0.f, 1.f);
+
 		reqlen = bc_sqrtf(reqdeg[0] * reqdeg[0] + reqdeg[1] * reqdeg[1]);
-		movelen = bc_sqrtf(move[0] * move[0] + move[1] * move[1]);
 
-		if (reqlen > 0.0001f && movelen < 0.0001f) {
-			// gun can't move on its own: everything turns the camera
-			camdeg[0] = reqdeg[0];
-			camdeg[1] = reqdeg[1];
-		} else if (reqlen > 0.0001f) {
-			const f32 ratio = movelen / reqlen; // gun degrees per requested degree
+		if (reqlen > 0.0001f) {
+			for (s32 i = 0; i < 2; i++) {
+				const f32 direct = reqdeg[i] * share;
 
-			st->target[0] += move[0];
-			st->target[1] += move[1];
+				camdeg[i] += direct;
+				st->display[i] -= direct * drag; // the gun lags a touch behind the turn
+				st->target[i] += reqdeg[i] - direct;
+			}
 
-			// 2. Anything that pushes past the edge of the zone goes into the overflow,
-			//    converted back to full turning speed, and the camera eases into it below
+			// 2. Whatever pushes the gun past the edge of the zone goes into the
+			//    overflow, and the camera eases into it below (edge smoothing)
 			ellipse = (st->target[0] / zx) * (st->target[0] / zx) + (st->target[1] / zy) * (st->target[1] / zy);
 
 			if (ellipse > 1.f) {
 				const f32 scale = 1.f / bc_sqrtf(ellipse);
-				const f32 overx = st->target[0] - st->target[0] * scale;
-				const f32 overy = st->target[1] - st->target[1] * scale;
 
+				st->over[0] += st->target[0] - st->target[0] * scale;
+				st->over[1] += st->target[1] - st->target[1] * scale;
 				st->target[0] *= scale;
 				st->target[1] *= scale;
-				st->over[0] += overx / ratio;
-				st->over[1] += overy / ratio;
 			}
 		}
 
@@ -450,7 +451,6 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		//    fast turns still keep up. The gun holds its aim in the world while
 		//    the camera turns, and lags a little extra (turn drag).
 		{
-			const f32 drag = clampf(cfg->turndrag, 0.f, 1.f);
 			const f32 softcap = 0.25f * (zx + zy);
 			const f32 overlen = bc_sqrtf(st->over[0] * st->over[0] + st->over[1] * st->over[1]);
 			f32 k = 1.f;
@@ -618,6 +618,67 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
 	*y = clampf(-bc_tanf(DEG2RAD(st->display[1])) / tanhalfy, -0.97f, 0.97f);
 }
 
+/*
+ * RE4-style laser sight
+ */
+
+bool weightyAimLaserEnhanced(void)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+	return weightyAimCfgEnabled(cfg) && cfg->laser;
+}
+
+static bool weightyAimIsFirearm(s32 weaponnum)
+{
+	return (weaponnum >= WEAPON_FALCON2 && weaponnum <= WEAPON_SLAYER)
+		|| (weaponnum >= WEAPON_CROSSBOW && weaponnum <= WEAPON_LASER)
+		|| (weaponnum >= WEAPON_PP9I && weaponnum <= WEAPON_PSYCHOSISGUN);
+}
+
+bool weightyAimLaserWanted(struct hand *hand, s32 handnum, s32 weaponnum)
+{
+	return handnum == HAND_RIGHT
+		&& PLAYERCOUNT() == 1 && IS8MB() // the game only draws laser sights in single player
+		&& hand->visible
+		&& hand->animmode != HANDANIMMODE_BUSY // hide it while reloading or switching
+		&& weightyAimIsFirearm(weaponnum)
+		&& weightyAimLaserEnhanced();
+}
+
+/**
+ * Beam from the gun's muzzle to where the shot would land, with a dot there.
+ * The game traces the aim every frame in single player (hand->dotpos).
+ */
+void weightyAimUpdateLaser(struct hand *hand, s32 handnum)
+{
+	struct coord beamnear, beamfar;
+
+	beamnear.x = hand->muzzlepos.x;
+	beamnear.y = hand->muzzlepos.y;
+	beamnear.z = hand->muzzlepos.z;
+
+	if (hand->hasdotinfo) {
+		beamfar.x = hand->dotpos.x;
+		beamfar.y = hand->dotpos.y;
+		beamfar.z = hand->dotpos.z;
+	} else {
+		// nothing in range: aim far along the crosshair direction
+		cam0f0b4c3c(g_Vars.currentplayer->crosspos, &beamfar, 1);
+		beamfar.x *= 5000.0f;
+		beamfar.y *= 5000.0f;
+		beamfar.z *= 5000.0f;
+		mtx4TransformVecInPlace(camGetProjectionMtxF(), &beamfar);
+	}
+
+	lasersightSetBeam(handnum, 1, &beamnear, &beamfar);
+
+	if (hand->hasdotinfo) {
+		struct coord dotpos = hand->dotpos;
+		struct coord dotrot = hand->dotrot;
+		lasersightSetDot(handnum, &dotpos, &dotrot);
+	}
+}
+
 PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 {
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
@@ -627,8 +688,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterInt(strFmt("WeightyAim.Player%d.Preset", i), &g_WeightyAimCfg[j].preset, 0, WEIGHTYAIM_NUM_PRESETS - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneX", i), &g_WeightyAimCfg[j].deadzonex, 0.f, 45.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneY", i), &g_WeightyAimCfg[j].deadzoney, 0.f, 45.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.StickAimSpeed", i), &g_WeightyAimCfg[j].stickaimspeed, 0.f, 3.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.MouseAimSpeed", i), &g_WeightyAimCfg[j].mouseaimspeed, 0.f, 3.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraShare", i), &g_WeightyAimCfg[j].camerashare, 0.f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraLead", i), &g_WeightyAimCfg[j].cameralead, 0.f, 10.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.RecenterSpeed", i), &g_WeightyAimCfg[j].recenterspeed, 0.f, 10.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.RecenterDelay", i), &g_WeightyAimCfg[j].recenterdelay, 0.f, 5.f);
@@ -639,6 +699,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraSway", i), &g_WeightyAimCfg[j].camerasway, 0.f, 5.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.WalkSway", i), &g_WeightyAimCfg[j].walksway, 0.f, 5.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.Crosshair", i), &g_WeightyAimCfg[j].crosshair, 0, 1);
+		configRegisterInt(strFmt("WeightyAim.Player%d.LaserSight", i), &g_WeightyAimCfg[j].laser, 0, 1);
 		configRegisterInt(strFmt("WeightyAim.Player%d.StickCurve", i), &g_WeightyAimStickCfg[j].curve, 0, WEIGHTYAIM_NUM_CURVES - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickInnerDeadzone", i), &g_WeightyAimStickCfg[j].innerdeadzone, 0.f, 0.9f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickOuterDeadzone", i), &g_WeightyAimStickCfg[j].outerdeadzone, 0.1f, 1.f);

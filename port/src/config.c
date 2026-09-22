@@ -10,7 +10,7 @@
 
 #define CONFIG_MAX_SECNAME 128
 #define CONFIG_MAX_KEYNAME 256
-#define CONFIG_MAX_SETTINGS 300
+#define CONFIG_MAX_SETTINGS 1024 // [weightyaim] raised from 300: the port plus Weighty Aim register more than 300 settings
 
 typedef enum {
 	CFG_NONE,
