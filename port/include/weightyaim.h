@@ -44,7 +44,27 @@ struct weightyaimcfg {
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*
 };
 
+#define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
+#define WEIGHTYAIM_CURVE_LINEAR   1
+#define WEIGHTYAIM_CURVE_BALANCED 2 // between linear and the original
+#define WEIGHTYAIM_CURVE_CUSTOM   3 // cubic bezier from (0,0) to (1,1), like DS4Windows
+#define WEIGHTYAIM_NUM_CURVES     4
+
+/*
+ * Look-stick response. Kept separate from the aim presets so switching
+ * presets never resets your stick tuning.
+ */
+struct weightyaimstickcfg {
+	s32 curve;           // WEIGHTYAIM_CURVE_*
+	f32 innerdeadzone;   // 0..1 of full deflection; below this the stick reads zero
+	f32 outerdeadzone;   // 0..1; at or past this the stick reads full
+	f32 bezier[4];       // custom curve control points: x1, y1, x2, y2 (0..1)
+	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate)
+};
+
 extern struct weightyaimcfg g_WeightyAimCfg[4];
+extern struct weightyaimstickcfg g_WeightyAimStickCfg[4];
+extern const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES];
 extern s32 g_WeightyAimDebugLog;       // write per-frame telemetry to weightyaim_log.csv
 extern s32 g_WeightyAimDebugPattern;   // replace look input with a scripted test pattern
 
@@ -52,6 +72,7 @@ extern const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS];
 
 void weightyAimResetDefaults(s32 cfgindex);
 void weightyAimApplyPreset(s32 cfgindex, s32 preset);
+void weightyAimResetStickDefaults(s32 cfgindex);
 
 /*
  * Hook 1 (bondmove.c, before the look code runs): takes this frame's look

@@ -158,6 +158,158 @@ static MenuItemHandlerResult menuhandlerWeightyAimReset(s32 operation, struct me
 	return 0;
 }
 
+/*
+ * Stick Response sub-page
+ */
+
+#define STICKFIELD(f) offsetof(struct weightyaimstickcfg, f)
+
+// order must match the slider items in g_WeightyAimStickMenuItems
+static const struct weightyaimslider g_WeightyAimStickSliders[] = {
+	{ STICKFIELD(innerdeadzone),  0.01f, 0.f,   "%.0f%%", NULL },
+	{ STICKFIELD(outerdeadzone),  0.01f, 0.1f,  "%.0f%%", NULL },
+	{ STICKFIELD(bezier[0]),      0.05f, 0.f,   "%.2f",   NULL },
+	{ STICKFIELD(bezier[1]),      0.05f, 0.f,   "%.2f",   NULL },
+	{ STICKFIELD(bezier[2]),      0.05f, 0.f,   "%.2f",   NULL },
+	{ STICKFIELD(bezier[3]),      0.05f, 0.f,   "%.2f",   NULL },
+	{ STICKFIELD(turnspeed),      0.05f, 0.25f, "%.2fx",  NULL },
+};
+
+#define FIRST_STICK_SLIDER_ITEM 1
+
+extern struct menuitem g_WeightyAimStickMenuItems[];
+
+static inline struct weightyaimstickcfg *weightyAimMenuStickCfg(void)
+{
+	return &g_WeightyAimStickCfg[optionsGetExtMenuPlayer() & 3];
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimStickSlider(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	const s32 index = (s32)(item - g_WeightyAimStickMenuItems) - FIRST_STICK_SLIDER_ITEM;
+	const struct weightyaimslider *sl;
+	f32 *field;
+	f32 value;
+
+	if (index < 0 || index >= (s32)ARRAYCOUNT(g_WeightyAimStickSliders)) {
+		return 0;
+	}
+
+	sl = &g_WeightyAimStickSliders[index];
+	field = (f32 *)((u8 *)weightyAimMenuStickCfg() + sl->offset);
+
+	switch (operation) {
+	case MENUOP_GETSLIDER:
+		data->slider.value = (u32)(*field / sl->step + 0.5f);
+		break;
+	case MENUOP_SET:
+		value = data->slider.value * sl->step;
+		*field = value < sl->min ? sl->min : value;
+		// moving a curve point switches to the custom curve so you see the change
+		if (index >= 2 && index <= 5) {
+			weightyAimMenuStickCfg()->curve = WEIGHTYAIM_CURVE_CUSTOM;
+		}
+		break;
+	case MENUOP_GETSLIDERLABEL:
+		value = data->slider.value * sl->step;
+		if (value < sl->min) {
+			value = sl->min;
+		}
+		sprintf(data->slider.label, sl->fmt, index < 2 ? value * 100.f : value);
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_CURVES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimCurveNames[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuStickCfg()->curve = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuStickCfg()->curve;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimResetStickDefaults(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+#define WEIGHTYAIM_STICK_SLIDER(label, notches) \
+	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimStickSlider }
+
+struct menuitem g_WeightyAimStickMenuItems[] = {
+	{
+		MENUITEMTYPE_DROPDOWN,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Look Curve",
+		0,
+		menuhandlerWeightyAimCurve,
+	},
+	// sliders: order must match g_WeightyAimStickSliders
+	WEIGHTYAIM_STICK_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
+	WEIGHTYAIM_STICK_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
+	WEIGHTYAIM_STICK_SLIDER("Custom Curve X1", 20),    // 0 - 1
+	WEIGHTYAIM_STICK_SLIDER("Custom Curve Y1", 20),
+	WEIGHTYAIM_STICK_SLIDER("Custom Curve X2", 20),
+	WEIGHTYAIM_STICK_SLIDER("Custom Curve Y2", 20),
+	WEIGHTYAIM_STICK_SLIDER("Max Turn Speed", 50),     // 0.25 - 2.5x
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Reset Stick Settings\n",
+		0,
+		menuhandlerWeightyAimStickReset,
+	},
+	{
+		MENUITEMTYPE_SEPARATOR,
+		0,
+		0,
+		0,
+		0,
+		NULL,
+	},
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_SELECTABLE_CLOSESDIALOG,
+		L_OPTIONS_213, // "Back"
+		0,
+		NULL,
+	},
+	{ MENUITEMTYPE_END },
+};
+
+struct menudialogdef g_WeightyAimStickMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Stick Response",
+	g_WeightyAimStickMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+/*
+ * Main Weighty Aim page
+ */
+
 #define WEIGHTYAIM_SLIDER(label, notches) \
 	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimSlider }
 
@@ -190,6 +342,14 @@ struct menuitem g_WeightyAimMenuItems[] = {
 		(uintptr_t)"Crosshair",
 		0,
 		menuhandlerWeightyAimCrosshair,
+	},
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG,
+		(uintptr_t)"Stick Response...\n",
+		0,
+		(void *)&g_WeightyAimStickMenuDialog,
 	},
 	{
 		MENUITEMTYPE_CHECKBOX,

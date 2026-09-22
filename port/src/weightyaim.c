@@ -40,6 +40,27 @@
 #define SPRING_STEP (1.f / 240.f)
 
 struct weightyaimcfg g_WeightyAimCfg[4];
+struct weightyaimstickcfg g_WeightyAimStickCfg[4];
+
+const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES] = {
+	"Original",
+	"Linear",
+	"Balanced",
+	"Custom",
+};
+
+static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
+	.curve = WEIGHTYAIM_CURVE_BALANCED,
+	.innerdeadzone = 0.08f,
+	.outerdeadzone = 0.95f,
+	.bezier = { 0.4f, 0.0f, 0.75f, 1.0f },
+	.turnspeed = 1.f,
+};
+
+void weightyAimResetStickDefaults(s32 cfgindex)
+{
+	g_WeightyAimStickCfg[cfgindex & 3] = g_WeightyAimStickDefaults;
+}
 s32 g_WeightyAimDebugLog = 0;
 s32 g_WeightyAimDebugPattern = 0;
 
@@ -157,6 +178,83 @@ static inline f32 weightyAimStickCurve(s32 analog)
 }
 
 /**
+ * Cubic bezier through (0,0), (x1,y1), (x2,y2), (1,1): find t where x(t) = x
+ * by bisection (x(t) is monotonic while x1, x2 are within 0..1), return y(t).
+ */
+static f32 weightyAimBezier(const f32 *p, f32 x)
+{
+	const f32 x1 = clampf(p[0], 0.f, 1.f), y1 = clampf(p[1], 0.f, 1.f);
+	const f32 x2 = clampf(p[2], 0.f, 1.f), y2 = clampf(p[3], 0.f, 1.f);
+	f32 lo = 0.f, hi = 1.f, t = x, u;
+
+	for (s32 i = 0; i < 24; i++) {
+		u = 1.f - t;
+		const f32 xt = 3.f * u * u * t * x1 + 3.f * u * t * t * x2 + t * t * t;
+
+		if (xt < x) {
+			lo = t;
+		} else {
+			hi = t;
+		}
+
+		t = (lo + hi) * 0.5f;
+	}
+
+	u = 1.f - t;
+	return 3.f * u * u * t * y1 + 3.f * u * t * t * y2 + t * t * t;
+}
+
+/**
+ * Turn the look stick into turn rates in speed units (-1..1 per axis).
+ *
+ * Original: the game's own per-axis squared response.
+ * Others: radial deadzone (inner/outer) so diagonals behave like straight
+ * lines, then the chosen curve applied to how far the stick is pushed.
+ */
+static void weightyAimStickRates(const struct weightyaimstickcfg *sc, s32 turn, s32 pitch, f32 *out)
+{
+	f32 rx, ry, mag, n, o, lo, hi;
+
+	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
+		out[0] = weightyAimStickCurve(turn);
+		out[1] = weightyAimStickCurve(pitch);
+		return;
+	}
+
+	// PD already subtracted a small 5-unit safe zone; put it back so our own
+	// deadzone is the only one (full deflection is about 127)
+	rx = turn == 0 ? 0.f : (turn + (turn > 0 ? 5 : -5)) / 127.f;
+	ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? 5 : -5)) / 127.f;
+	mag = bc_sqrtf(rx * rx + ry * ry);
+
+	if (mag < 0.0001f) {
+		out[0] = out[1] = 0.f;
+		return;
+	}
+
+	lo = clampf(sc->innerdeadzone, 0.f, 0.9f);
+	hi = clampf(sc->outerdeadzone, lo + 0.05f, 1.f);
+	n = clampf((mag - lo) / (hi - lo), 0.f, 1.f);
+
+	switch (sc->curve) {
+	case WEIGHTYAIM_CURVE_LINEAR:
+		o = n;
+		break;
+	case WEIGHTYAIM_CURVE_CUSTOM:
+		o = weightyAimBezier(sc->bezier, n);
+		break;
+	case WEIGHTYAIM_CURVE_BALANCED:
+	default:
+		o = n * bc_sqrtf(n); // n^1.5, halfway between linear and squared
+		break;
+	}
+
+	o *= clampf(sc->turnspeed, 0.1f, 3.f);
+	out[0] = rx / mag * o;
+	out[1] = ry / mag * o;
+}
+
+/**
  * Scripted look input for repeatable testing, in speed units (-1..1).
  * One cycle is 4.8 seconds:
  *   fast turn right, stop, fast turn left, stop, slow sweep inside the zone, stop.
@@ -244,11 +342,12 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 {
 	struct weightyaimcfg *cfg = weightyAimCurCfg();
 	struct weightyaimstate *st = weightyAimCurState();
+	const struct weightyaimstickcfg *sc = &g_WeightyAimStickCfg[g_Vars.currentplayerstats->mpindex & 3];
 	const f32 dt60 = g_Vars.lvupdate60freal;
 	const f32 dtsec = dt60 / 60.f;
 	const f32 fovscale = viGetFovY() / PLAYER_DEFAULT_FOV;
 	const bool isfirstplayer = (g_Vars.currentplayernum == 0);
-	f32 stickdeg[2], mousedeg[2], reqdeg[2], camdeg[2] = { 0.f, 0.f };
+	f32 stickrate[2], stickdeg[2], mousedeg[2], reqdeg[2], camdeg[2] = { 0.f, 0.f };
 	bool active;
 
 	if (dt60 <= 0.f || mlookscale <= 0.f || fovscale <= 0.f) {
@@ -267,9 +366,10 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 	// Requested rotation this frame in degrees, exactly as PD would apply it.
 	// Pitch: PD sets speedverta = -(stick + mouse), and +speedverta looks up.
-	stickdeg[0] = weightyAimStickCurve(*analogturn) * fovscale * DEG_PER_SPEED_TICK * dt60;
+	weightyAimStickRates(sc, *analogturn, *analogpitch, stickrate);
+	stickdeg[0] = stickrate[0] * fovscale * DEG_PER_SPEED_TICK * dt60;
 	mousedeg[0] = *freelookdx * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
-	stickdeg[1] = -weightyAimStickCurve(*analogpitch) * fovscale * DEG_PER_SPEED_TICK * dt60;
+	stickdeg[1] = -stickrate[1] * fovscale * DEG_PER_SPEED_TICK * dt60;
 	mousedeg[1] = -*freelookdy * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
 	reqdeg[0] = stickdeg[0] + mousedeg[0];
 	reqdeg[1] = stickdeg[1] + mousedeg[1];
@@ -284,6 +384,15 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	if (!active) {
 		weightyAimResetState(st);
 		st->active = false;
+
+		// Aim mod off (Classic) but a custom stick response chosen: still apply it.
+		// With analog zeroed, PD computes speed = (freelook * mlookscale) * fovscale.
+		if (canlook && sc->curve != WEIGHTYAIM_CURVE_ORIGINAL) {
+			*analogturn = 0;
+			*analogpitch = 0;
+			*freelookdx += stickrate[0] / mlookscale;
+			*freelookdy += stickrate[1] / mlookscale;
+		}
 	} else {
 		const f32 zx = clampf(cfg->deadzonex, 0.05f, 45.f);
 		const f32 zy = clampf(cfg->deadzoney, 0.05f, 45.f);
@@ -464,6 +573,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
 		const s32 i = j + 1;
 		weightyAimResetDefaults(j);
+		weightyAimResetStickDefaults(j);
 		configRegisterInt(strFmt("WeightyAim.Player%d.Preset", i), &g_WeightyAimCfg[j].preset, 0, WEIGHTYAIM_NUM_PRESETS - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneX", i), &g_WeightyAimCfg[j].deadzonex, 0.f, 45.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneY", i), &g_WeightyAimCfg[j].deadzoney, 0.f, 45.f);
@@ -478,6 +588,14 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraSway", i), &g_WeightyAimCfg[j].camerasway, 0.f, 5.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.WalkSway", i), &g_WeightyAimCfg[j].walksway, 0.f, 5.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.Crosshair", i), &g_WeightyAimCfg[j].crosshair, 0, 1);
+		configRegisterInt(strFmt("WeightyAim.Player%d.StickCurve", i), &g_WeightyAimStickCfg[j].curve, 0, WEIGHTYAIM_NUM_CURVES - 1);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickInnerDeadzone", i), &g_WeightyAimStickCfg[j].innerdeadzone, 0.f, 0.9f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickOuterDeadzone", i), &g_WeightyAimStickCfg[j].outerdeadzone, 0.1f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierX1", i), &g_WeightyAimStickCfg[j].bezier[0], 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierY1", i), &g_WeightyAimStickCfg[j].bezier[1], 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierX2", i), &g_WeightyAimStickCfg[j].bezier[2], 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierY2", i), &g_WeightyAimStickCfg[j].bezier[3], 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.StickTurnSpeed", i), &g_WeightyAimStickCfg[j].turnspeed, 0.1f, 3.f);
 	}
 
 	configRegisterInt("WeightyAim.Debug.Log", &g_WeightyAimDebugLog, 0, 1);
