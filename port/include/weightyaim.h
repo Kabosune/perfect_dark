@@ -22,8 +22,12 @@
 #define WEIGHTYAIM_PRESET_IMMERSIVE 1 // heavier, more flowing gun and camera, crosshair only when aiming
 #define WEIGHTYAIM_PRESET_BORING  2 // plain modern FPS: crosshair locked to the centre, no sway
 #define WEIGHTYAIM_PRESET_CLASSIC 3 // the game's original crosshair sway (mod off)
-#define WEIGHTYAIM_PRESET_CUSTOM  4 // any slider changed by hand
-#define WEIGHTYAIM_NUM_PRESETS    5
+#define WEIGHTYAIM_PRESET_CUSTOM1 4 // your own profiles; each one remembers its settings
+#define WEIGHTYAIM_PRESET_CUSTOM2 5
+#define WEIGHTYAIM_PRESET_CUSTOM3 6
+#define WEIGHTYAIM_NUM_PRESETS    7
+#define WEIGHTYAIM_NUM_CUSTOM     3
+#define WEIGHTYAIM_IS_CUSTOM(p)   ((p) >= WEIGHTYAIM_PRESET_CUSTOM1)
 
 #define WEIGHTYAIM_CROSSHAIR_ALWAYS   0
 #define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing, shown when holding aim
@@ -58,8 +62,11 @@ struct weightyaimcfg {
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
 #define WEIGHTYAIM_CURVE_LINEAR   1
 #define WEIGHTYAIM_CURVE_BALANCED 2 // between linear and the original
-#define WEIGHTYAIM_CURVE_CUSTOM   3 // cubic bezier from (0,0) to (1,1), like DS4Windows
-#define WEIGHTYAIM_NUM_CURVES     4
+#define WEIGHTYAIM_CURVE_CUSTOM1  3 // cubic bezier from (0,0) to (1,1), like DS4Windows;
+#define WEIGHTYAIM_CURVE_CUSTOM2  4 // three custom curves, each remembers its own points
+#define WEIGHTYAIM_CURVE_CUSTOM3  5
+#define WEIGHTYAIM_NUM_CURVES     6
+#define WEIGHTYAIM_IS_CUSTOM_CURVE(c) ((c) >= WEIGHTYAIM_CURVE_CUSTOM1)
 
 #define WEIGHTYAIM_BOOST_OFF     0
 #define WEIGHTYAIM_BOOST_INSTANT 1 // full boost the moment the stick hits the threshold
@@ -74,7 +81,9 @@ struct weightyaimstickcfg {
 	s32 curve;           // WEIGHTYAIM_CURVE_*
 	f32 innerdeadzone;   // 0..1 of full deflection; below this the stick reads zero
 	f32 outerdeadzone;   // 0..1; at or past this the stick reads full
-	f32 bezier[4];       // custom curve control points: x1, y1, x2, y2 (0..1)
+	f32 bezier[4];       // the custom curve being used/edited: x1, y1, x2, y2 (0..1)
+	f32 bezierprofile[3][4]; // saved points for Custom 1-3
+	s32 lastcustomcurve; // which custom curve the curve sliders edit when a built-in curve is selected
 	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate)
 
 	// turn boost: extra turn speed when the stick is held near full deflection
@@ -86,7 +95,9 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
-extern struct weightyaimcfg g_WeightyAimCfg[4];
+extern struct weightyaimcfg g_WeightyAimCfg[4];            // live settings
+extern struct weightyaimcfg g_WeightyAimCustomCfg[4][3];     // saved Custom 1-3 profiles
+extern s32 g_WeightyAimLastCustom[4];                        // custom profile edited from a built-in preset
 extern struct weightyaimstickcfg g_WeightyAimStickCfg[4];
 extern const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES];
 extern const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS];
@@ -98,6 +109,9 @@ extern const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS];
 void weightyAimResetDefaults(s32 cfgindex);
 void weightyAimApplyPreset(s32 cfgindex, s32 preset);
 void weightyAimResetStickDefaults(s32 cfgindex);
+void weightyAimAimSettingsChanged(s32 cfgindex);
+void weightyAimSelectCurve(s32 cfgindex, s32 curve);
+void weightyAimCurvePointsChanged(s32 cfgindex);
 void weightyAimResetBoostDefaults(s32 cfgindex);
 
 /*

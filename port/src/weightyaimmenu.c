@@ -61,6 +61,12 @@ static void *weightyAimMenuCfgVoid(void)      { return weightyAimMenuCfg(); }
 static void *weightyAimMenuStickCfgVoid(void) { return weightyAimMenuStickCfg(); }
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data);
+static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct menuitem *item, union handlerdata *data);
+
+// the preset picker, shown at the top of each aim page so the sliders below
+// update live as you flip through presets
+#define WEIGHTYAIM_PRESET_ITEM \
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Preset", 0, menuhandlerWeightyAimPreset }
 
 #define WEIGHTYAIM_SLIDER(label, notches) \
 	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)(label), (notches), menuhandlerWeightyAimSlider }
@@ -90,6 +96,7 @@ static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 };
 
 struct menuitem g_WeightyAimFeelMenuItems[] = {
+	WEIGHTYAIM_PRESET_ITEM,
 	// order must match g_WeightyAimFeelSliders
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),   // 0 - 20 deg
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),  // 0 - 15 deg
@@ -117,7 +124,8 @@ struct menudialogdef g_WeightyAimFeelMenuDialog = {
 
 static void weightyAimFeelChanged(s32 sliderindex)
 {
-	weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM; // hand-tuned now
+	// saved into the custom profile (switching to one if a built-in preset was on)
+	weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 }
 
 /* ------------------------------------------------------------------------
@@ -138,9 +146,9 @@ static const struct weightyaimslider g_WeightyAimStickSliders[] = {
 
 static void weightyAimStickChanged(s32 sliderindex)
 {
-	// moving a curve point switches to the custom curve so you see the change
+	// moving a curve point switches to a custom curve and saves the points there
 	if (sliderindex >= STICK_FIRST_BEZIER_SLIDER) {
-		weightyAimMenuStickCfg()->curve = WEIGHTYAIM_CURVE_CUSTOM;
+		weightyAimCurvePointsChanged(optionsGetExtMenuPlayer());
 	}
 }
 
@@ -153,7 +161,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct me
 	case MENUOP_GETOPTIONTEXT:
 		return (intptr_t)g_WeightyAimCurveNames[data->dropdown.value];
 	case MENUOP_SET:
-		weightyAimMenuStickCfg()->curve = data->dropdown.value;
+		weightyAimSelectCurve(optionsGetExtMenuPlayer(), data->dropdown.value);
 		break;
 	case MENUOP_GETSELECTEDINDEX:
 		data->dropdown.value = weightyAimMenuStickCfg()->curve;
@@ -275,7 +283,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimAds(s32 operation, struct menu
 		return weightyAimMenuCfg()->ads;
 	case MENUOP_SET:
 		weightyAimMenuCfg()->ads = data->checkbox.value;
-		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM;
+		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 		break;
 	}
 
@@ -283,6 +291,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimAds(s32 operation, struct menu
 }
 
 struct menuitem g_WeightyAimAdsMenuItems[] = {
+	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
 	// order must match g_WeightyAimAdsSliders
 	WEIGHTYAIM_SLIDER("Zoom", 40),                  // 1 - 3x
@@ -307,10 +316,10 @@ struct menudialogdef g_WeightyAimAdsMenuDialog = {
  */
 
 static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
-	{ g_WeightyAimFeelMenuItems,  0, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimFeelMenuItems,  1, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 	{ g_WeightyAimStickMenuItems, 1, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
-	{ g_WeightyAimAdsMenuItems,   1, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimAdsMenuItems,   2, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
@@ -405,7 +414,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimCrosshair(s32 operation, struc
 		return (intptr_t)opts[data->dropdown.value];
 	case MENUOP_SET:
 		weightyAimMenuCfg()->crosshair = data->dropdown.value;
-		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM;
+		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 		break;
 	case MENUOP_GETSELECTEDINDEX:
 		data->dropdown.value = weightyAimMenuCfg()->crosshair;
@@ -422,7 +431,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimLaser(s32 operation, struct me
 		return weightyAimMenuCfg()->laser;
 	case MENUOP_SET:
 		weightyAimMenuCfg()->laser = data->checkbox.value;
-		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM;
+		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 		break;
 	}
 
@@ -455,7 +464,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimReset(s32 operation, struct me
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG, (uintptr_t)(label), 0, (void *)&(dialog) }
 
 struct menuitem g_WeightyAimMenuItems[] = {
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Preset", 0, menuhandlerWeightyAimPreset },
+	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),

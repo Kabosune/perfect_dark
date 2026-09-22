@@ -1,3 +1,4 @@
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #include <ultra64.h>
@@ -45,13 +46,17 @@
 #define SPRING_STEP (1.f / 240.f)
 
 struct weightyaimcfg g_WeightyAimCfg[4];
+struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
+s32 g_WeightyAimLastCustom[4];
 struct weightyaimstickcfg g_WeightyAimStickCfg[4];
 
 const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES] = {
 	"Original",
 	"Linear",
 	"Balanced",
-	"Custom",
+	"Custom 1",
+	"Custom 2",
+	"Custom 3",
 };
 
 const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS] = {
@@ -65,6 +70,12 @@ static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
 	.innerdeadzone = 0.08f,
 	.outerdeadzone = 0.95f,
 	.bezier = { 0.4f, 0.0f, 0.75f, 1.0f },
+	.bezierprofile = {
+		{ 0.4f, 0.0f, 0.75f, 1.0f },
+		{ 0.4f, 0.0f, 0.75f, 1.0f },
+		{ 0.4f, 0.0f, 0.75f, 1.0f },
+	},
+	.lastcustomcurve = 0,
 	.turnspeed = 1.f,
 	.boostmode = WEIGHTYAIM_BOOST_RAMPED,
 	.boostamount = 1.8f,
@@ -83,8 +94,42 @@ void weightyAimResetStickDefaults(s32 cfgindex)
 	sc->curve = d->curve;
 	sc->innerdeadzone = d->innerdeadzone;
 	sc->outerdeadzone = d->outerdeadzone;
-	memcpy(sc->bezier, d->bezier, sizeof(sc->bezier));
 	sc->turnspeed = d->turnspeed;
+	// custom curve profiles are kept; resetting shouldn't wipe your curves
+}
+
+/**
+ * Pick a look curve. Choosing Custom 1-3 loads that profile's points.
+ */
+void weightyAimSelectCurve(s32 cfgindex, s32 curve)
+{
+	struct weightyaimstickcfg *sc = &g_WeightyAimStickCfg[cfgindex & 3];
+
+	sc->curve = curve;
+
+	if (WEIGHTYAIM_IS_CUSTOM_CURVE(curve)) {
+		const s32 slot = curve - WEIGHTYAIM_CURVE_CUSTOM1;
+		memcpy(sc->bezier, sc->bezierprofile[slot], sizeof(sc->bezier));
+		sc->lastcustomcurve = slot;
+	}
+}
+
+/**
+ * A curve point slider moved: make sure a custom curve is selected (the one
+ * last used if a built-in curve was on) and save the points into it.
+ */
+void weightyAimCurvePointsChanged(s32 cfgindex)
+{
+	struct weightyaimstickcfg *sc = &g_WeightyAimStickCfg[cfgindex & 3];
+	s32 slot;
+
+	if (!WEIGHTYAIM_IS_CUSTOM_CURVE(sc->curve)) {
+		sc->curve = WEIGHTYAIM_CURVE_CUSTOM1 + (sc->lastcustomcurve % 3);
+	}
+
+	slot = sc->curve - WEIGHTYAIM_CURVE_CUSTOM1;
+	memcpy(sc->bezierprofile[slot], sc->bezier, sizeof(sc->bezier));
+	sc->lastcustomcurve = slot;
 }
 
 void weightyAimResetBoostDefaults(s32 cfgindex)
@@ -131,7 +176,9 @@ const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 	"Immersive",
 	"Boring",
 	"Classic",
-	"Custom",
+	"Custom 1",
+	"Custom 2",
+	"Custom 3",
 };
 
 // Weighty: free-aim with a crosshair, a gun with some heft, a hint of sway
@@ -212,7 +259,8 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 {
-	struct weightyaimcfg *cfg = &g_WeightyAimCfg[cfgindex & 3];
+	const s32 idx = cfgindex & 3;
+	struct weightyaimcfg *cfg = &g_WeightyAimCfg[idx];
 
 	switch (preset) {
 	case WEIGHTYAIM_PRESET_WEIGHTY:
@@ -225,11 +273,38 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 		*cfg = g_WeightyAimPresetBoring;
 		break;
 	case WEIGHTYAIM_PRESET_CLASSIC:
-	case WEIGHTYAIM_PRESET_CUSTOM:
 		// keep the current values; Classic just switches the mod off
 		cfg->preset = preset;
 		break;
+	default:
+		if (WEIGHTYAIM_IS_CUSTOM(preset) && preset < WEIGHTYAIM_NUM_PRESETS) {
+			const s32 slot = preset - WEIGHTYAIM_PRESET_CUSTOM1;
+			*cfg = g_WeightyAimCustomCfg[idx][slot];
+			cfg->preset = preset;
+			g_WeightyAimLastCustom[idx] = slot;
+		}
+		break;
 	}
+}
+
+/**
+ * Something on the aim pages changed by hand. On a custom profile, save it
+ * there. On a built-in preset (or Classic), carry the current values over to
+ * the last custom profile you used, switch to it and save the change there.
+ */
+void weightyAimAimSettingsChanged(s32 cfgindex)
+{
+	const s32 idx = cfgindex & 3;
+	struct weightyaimcfg *cfg = &g_WeightyAimCfg[idx];
+	s32 slot;
+
+	if (!WEIGHTYAIM_IS_CUSTOM(cfg->preset)) {
+		cfg->preset = WEIGHTYAIM_PRESET_CUSTOM1 + (g_WeightyAimLastCustom[idx] % 3);
+	}
+
+	slot = cfg->preset - WEIGHTYAIM_PRESET_CUSTOM1;
+	g_WeightyAimCustomCfg[idx][slot] = *cfg;
+	g_WeightyAimLastCustom[idx] = slot;
 }
 
 void weightyAimResetDefaults(s32 cfgindex)
@@ -379,7 +454,9 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, struct wei
 	case WEIGHTYAIM_CURVE_LINEAR:
 		o = n;
 		break;
-	case WEIGHTYAIM_CURVE_CUSTOM:
+	case WEIGHTYAIM_CURVE_CUSTOM1:
+	case WEIGHTYAIM_CURVE_CUSTOM2:
+	case WEIGHTYAIM_CURVE_CUSTOM3:
 		o = weightyAimBezier(sc->bezier, n);
 		break;
 	case WEIGHTYAIM_CURVE_BALANCED:
@@ -983,41 +1060,104 @@ void weightyAimUpdateLaser(struct hand *hand, s32 handnum)
 	}
 }
 
+/*
+ * Settings file (pd.ini). The aim settings are registered once for the live
+ * values and once per custom profile, from one table.
+ */
+
+struct weightyaimcfgfield {
+	const char *name;
+	size_t offset;
+	s32 isint;
+	f32 min;
+	f32 max;
+};
+
+#define WA_FLOAT(name, field, lo, hi) { name, offsetof(struct weightyaimcfg, field), 0, lo, hi }
+#define WA_INT(name, field, lo, hi)   { name, offsetof(struct weightyaimcfg, field), 1, lo, hi }
+
+static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
+	WA_FLOAT("DeadzoneX",     deadzonex,     0.f, 45.f),
+	WA_FLOAT("DeadzoneY",     deadzoney,     0.f, 45.f),
+	WA_FLOAT("CameraShare",   camerashare,   0.f, 1.f),
+	WA_FLOAT("CameraLead",    cameralead,    0.f, 10.f),
+	WA_FLOAT("RecenterSpeed", recenterspeed, 0.f, 10.f),
+	WA_FLOAT("RecenterDelay", recenterdelay, 0.f, 5.f),
+	WA_FLOAT("GunResponse",   gunresponse,   0.5f, 40.f),
+	WA_FLOAT("GunDamping",    gundamping,    0.05f, 3.f),
+	WA_FLOAT("TurnDrag",      turndrag,      0.f, 1.f),
+	WA_FLOAT("EdgeSmoothing", edgesmoothing, 0.f, 1.f),
+	WA_FLOAT("CameraSway",    camerasway,    0.f, 5.f),
+	WA_FLOAT("WalkSway",      walksway,      0.f, 5.f),
+	WA_INT  ("Crosshair",     crosshair,     0, 1),
+	WA_INT  ("LaserSight",    laser,         0, 1),
+	WA_INT  ("AimDownSights", ads,           0, 1),
+	WA_FLOAT("AdsZoom",       adszoom,       1.f, 3.f),
+	WA_FLOAT("AdsTime",       adstime,       0.f, 1.f),
+	WA_FLOAT("AdsSway",       adssway,       0.f, 1.f),
+	WA_FLOAT("AdsZone",       adszone,       0.f, 1.f),
+	WA_FLOAT("AdsHeight",     adsheight,     -10.f, 10.f),
+};
+
+static void weightyAimRegisterCfg(const char *prefix, struct weightyaimcfg *cfg)
+{
+	for (s32 f = 0; f < (s32)ARRAYCOUNT(g_WeightyAimCfgFields); f++) {
+		const struct weightyaimcfgfield *fd = &g_WeightyAimCfgFields[f];
+		void *ptr = (u8 *)cfg + fd->offset;
+
+		if (fd->isint) {
+			configRegisterInt(strFmt("%s.%s", prefix, fd->name), (s32 *)ptr, (s32)fd->min, (s32)fd->max);
+		} else {
+			configRegisterFloat(strFmt("%s.%s", prefix, fd->name), (f32 *)ptr, fd->min, fd->max);
+		}
+	}
+}
+
 PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 {
+	static const char *pointnames[4] = { "X1", "Y1", "X2", "Y2" };
+	char prefix[64];
+
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
 		const s32 i = j + 1;
+
 		weightyAimResetDefaults(j);
 		g_WeightyAimStickCfg[j] = g_WeightyAimStickDefaults;
+		g_WeightyAimLastCustom[j] = 0;
+
+		for (s32 c = 0; c < WEIGHTYAIM_NUM_CUSTOM; c++) {
+			g_WeightyAimCustomCfg[j][c] = g_WeightyAimPresetWeighty;
+			g_WeightyAimCustomCfg[j][c].preset = WEIGHTYAIM_PRESET_CUSTOM1 + c;
+		}
+
 		configRegisterInt(strFmt("WeightyAim.Player%d.Preset", i), &g_WeightyAimCfg[j].preset, 0, WEIGHTYAIM_NUM_PRESETS - 1);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneX", i), &g_WeightyAimCfg[j].deadzonex, 0.f, 45.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.DeadzoneY", i), &g_WeightyAimCfg[j].deadzoney, 0.f, 45.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraShare", i), &g_WeightyAimCfg[j].camerashare, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraLead", i), &g_WeightyAimCfg[j].cameralead, 0.f, 10.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.RecenterSpeed", i), &g_WeightyAimCfg[j].recenterspeed, 0.f, 10.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.RecenterDelay", i), &g_WeightyAimCfg[j].recenterdelay, 0.f, 5.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.GunResponse", i), &g_WeightyAimCfg[j].gunresponse, 0.5f, 40.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.GunDamping", i), &g_WeightyAimCfg[j].gundamping, 0.05f, 3.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.TurnDrag", i), &g_WeightyAimCfg[j].turndrag, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.EdgeSmoothing", i), &g_WeightyAimCfg[j].edgesmoothing, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraSway", i), &g_WeightyAimCfg[j].camerasway, 0.f, 5.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.WalkSway", i), &g_WeightyAimCfg[j].walksway, 0.f, 5.f);
-		configRegisterInt(strFmt("WeightyAim.Player%d.Crosshair", i), &g_WeightyAimCfg[j].crosshair, 0, 1);
-		configRegisterInt(strFmt("WeightyAim.Player%d.LaserSight", i), &g_WeightyAimCfg[j].laser, 0, 1);
-		configRegisterInt(strFmt("WeightyAim.Player%d.AimDownSights", i), &g_WeightyAimCfg[j].ads, 0, 1);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsZoom", i), &g_WeightyAimCfg[j].adszoom, 1.f, 3.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsTime", i), &g_WeightyAimCfg[j].adstime, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsSway", i), &g_WeightyAimCfg[j].adssway, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsZone", i), &g_WeightyAimCfg[j].adszone, 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsHeight", i), &g_WeightyAimCfg[j].adsheight, -10.f, 10.f);
+		snprintf(prefix, sizeof(prefix), "WeightyAim.Player%d", i);
+		weightyAimRegisterCfg(prefix, &g_WeightyAimCfg[j]);
+
+		configRegisterInt(strFmt("WeightyAim.Player%d.LastCustom", i), &g_WeightyAimLastCustom[j], 0, WEIGHTYAIM_NUM_CUSTOM - 1);
+
+		for (s32 c = 0; c < WEIGHTYAIM_NUM_CUSTOM; c++) {
+			snprintf(prefix, sizeof(prefix), "WeightyAim.Player%d.Custom%d", i, c + 1);
+			weightyAimRegisterCfg(prefix, &g_WeightyAimCustomCfg[j][c]);
+		}
+
 		configRegisterInt(strFmt("WeightyAim.Player%d.StickCurve", i), &g_WeightyAimStickCfg[j].curve, 0, WEIGHTYAIM_NUM_CURVES - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickInnerDeadzone", i), &g_WeightyAimStickCfg[j].innerdeadzone, 0.f, 0.9f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickOuterDeadzone", i), &g_WeightyAimStickCfg[j].outerdeadzone, 0.1f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierX1", i), &g_WeightyAimStickCfg[j].bezier[0], 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierY1", i), &g_WeightyAimStickCfg[j].bezier[1], 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierX2", i), &g_WeightyAimStickCfg[j].bezier[2], 0.f, 1.f);
-		configRegisterFloat(strFmt("WeightyAim.Player%d.StickBezierY2", i), &g_WeightyAimStickCfg[j].bezier[3], 0.f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickTurnSpeed", i), &g_WeightyAimStickCfg[j].turnspeed, 0.1f, 3.f);
+		configRegisterInt(strFmt("WeightyAim.Player%d.StickLastCustomCurve", i), &g_WeightyAimStickCfg[j].lastcustomcurve, 0, 2);
+
+		for (s32 k = 0; k < 4; k++) {
+			configRegisterFloat(strFmt("WeightyAim.Player%d.StickCurve%s", i, pointnames[k]), &g_WeightyAimStickCfg[j].bezier[k], 0.f, 1.f);
+		}
+
+		for (s32 c = 0; c < 3; c++) {
+			for (s32 k = 0; k < 4; k++) {
+				configRegisterFloat(strFmt("WeightyAim.Player%d.StickCustom%d%s", i, c + 1, pointnames[k]),
+						&g_WeightyAimStickCfg[j].bezierprofile[c][k], 0.f, 1.f);
+			}
+		}
+
 		configRegisterInt(strFmt("WeightyAim.Player%d.BoostMode", i), &g_WeightyAimStickCfg[j].boostmode, 0, WEIGHTYAIM_NUM_BOOSTS - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostAmount", i), &g_WeightyAimStickCfg[j].boostamount, 1.f, 4.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.BoostThreshold", i), &g_WeightyAimStickCfg[j].boostthreshold, 0.3f, 1.f);
