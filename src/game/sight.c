@@ -22,6 +22,7 @@
 #ifndef PLATFORM_N64
 #include <math.h>
 #include "video.h"
+#include "weightyaim.h" // [weightyaim]
 
 #define SIGHT_COLOUR ((PLAYER_EXTCFG().crosshairhealth >= CROSSHAIR_HEALTH_ON_GREEN) ? sightGetCrosshairHealthColor(g_Vars.currentplayer->bondhealth, g_Vars.currentplayer->prop->chr->cshield * 0.125f) : PLAYER_EXTCFG().crosshaircolour)
 #define SIGHT_SCALE PLAYER_EXTCFG().crosshairsize
@@ -1637,6 +1638,11 @@ Gfx *sightDraw(Gfx *gdl, bool sighton, s32 sight)
 #ifndef PLATFORM_N64
 	if (g_Vars.currentplayer->bondhealth <= 0.0f) {
 		// Hide crosshair during death animation
+		sight = SIGHT_NONE;
+	}
+
+	// [weightyaim] "Only When Aiming" crosshair: hide it while hip-firing
+	if (weightyAimHideCrosshair() && sight != SIGHT_ZOOM) {
 		sight = SIGHT_NONE;
 	}
 #endif
