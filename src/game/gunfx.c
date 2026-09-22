@@ -1128,17 +1128,8 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 
 			colours = gfxAllocateColours(2);
 
-#ifndef PLATFORM_N64
-			if (weightyAimLaserEnhanced()) {
-				// [weightyaim] brighter dot for the enhanced laser
-				colours[0].word = PD_BE32(0xff3030e0);
-				colours[1].word = PD_BE32(0xff00004f);
-			} else
-#endif
-			{
-				colours[0].word = PD_BE32(0xff00005f);
-				colours[1].word = PD_BE32(0xff00000f);
-			}
+			colours[0].word = PD_BE32(0xff00005f);
+			colours[1].word = PD_BE32(0xff00000f);
 
 			gSPColor(gdl++, osVirtualToPhysical(colours), 2);
 
@@ -1185,12 +1176,6 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 						}
 					}
 
-#ifndef PLATFORM_N64
-					if (weightyAimLaserEnhanced()) {
-						f20 *= 1.7f; // [weightyaim] a bigger dot, easy to see where you're aiming
-					}
-#endif
-
 					texSelect(&gdl, &g_TexGeneralConfigs[4], 4, 0, 2, true, NULL);
 
 					if (rot.f[0] == 0.0f && rot.f[2] == 0.0f) {
@@ -1218,41 +1203,68 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 						f00 = 0;
 					}
 
-					vertices = gfxAllocateVertices(4);
+					// [weightyaim] the enhanced dot is a soft red glow around a bright core
+					s32 numdotpasses = 1;
+					f32 dotscale[3] = { 1.0f, 0.f, 0.f };
+					u32 dotcol[3] = { 0xff00005f, 0, 0 };
 
-					vertices[3].colour = 0;
-					vertices[2].colour = 0;
-					vertices[1].colour = 0;
-					vertices[0].colour = 0;
+#ifndef PLATFORM_N64
+					if (weightyAimLaserEnhanced()) {
+						const f32 flicker = 0.9f + 0.1f * sinf(g_Vars.lvframenum * 1.7f);
 
-					vertices[0].s = 0;
-					vertices[0].t = 0;
-					vertices[1].s = 512;
-					vertices[1].t = 0;
-					vertices[2].s = 512;
-					vertices[2].t = 512;
-					vertices[3].s = 0;
-					vertices[3].t = 512;
+						numdotpasses = 3;
+						dotscale[0] = 4.0f; dotcol[0] = 0xff101000 | (u32)(0x40 * flicker);
+						dotscale[1] = 1.7f; dotcol[1] = 0xff202000 | (u32)(0xa0 * flicker);
+						dotscale[2] = 0.7f; dotcol[2] = 0xffe0e000 | 0xff;
+					}
+#endif
 
-					vertices[0].x = pos.f[0] + (-f20 * f22) + (f20 * spcc);
-					vertices[0].y = pos.f[1] + (-f20 * f00) + (f20 * spc8);
-					vertices[0].z = pos.f[2] + (-f20 * f24) + (f20 * spc4);
+					for (s32 pass = 0; pass < numdotpasses; pass++) {
+						const f32 dotsize = f20 * dotscale[pass];
 
-					vertices[1].x = pos.f[0] + (f20 * f22) + (f20 * spcc);
-					vertices[1].y = pos.f[1] + (f20 * f00) + (f20 * spc8);
-					vertices[1].z = pos.f[2] + (f20 * f24) + (f20 * spc4);
+						if (numdotpasses > 1) {
+							colours = gfxAllocateColours(2);
+							colours[0].word = PD_BE32(dotcol[pass]);
+							colours[1].word = PD_BE32(dotcol[pass] & 0xffffff00);
+							gSPColor(gdl++, osVirtualToPhysical(colours), 2);
+						}
 
-					vertices[2].x = pos.f[0] + (f20 * f22) + (-f20 * spcc);
-					vertices[2].y = pos.f[1] + (f20 * f00) + (-f20 * spc8);
-					vertices[2].z = pos.f[2] + (f20 * f24) + (-f20 * spc4);
+						vertices = gfxAllocateVertices(4);
 
-					vertices[3].x = pos.f[0] + (-f20 * f22) + (-f20 * spcc);
-					vertices[3].y = pos.f[1] + (-f20 * f00) + (-f20 * spc8);
-					vertices[3].z = pos.f[2] + (-f20 * f24) + (-f20 * spc4);
+						vertices[3].colour = 0;
+						vertices[2].colour = 0;
+						vertices[1].colour = 0;
+						vertices[0].colour = 0;
 
-					gSPVertex(gdl++, osVirtualToPhysical(vertices), 4, 0);
+						vertices[0].s = 0;
+						vertices[0].t = 0;
+						vertices[1].s = 512;
+						vertices[1].t = 0;
+						vertices[2].s = 512;
+						vertices[2].t = 512;
+						vertices[3].s = 0;
+						vertices[3].t = 512;
 
-					gSPTri2(gdl++, 0, 1, 2, 2, 3, 0);
+						vertices[0].x = pos.f[0] + (-dotsize * f22) + (dotsize * spcc);
+						vertices[0].y = pos.f[1] + (-dotsize * f00) + (dotsize * spc8);
+						vertices[0].z = pos.f[2] + (-dotsize * f24) + (dotsize * spc4);
+
+						vertices[1].x = pos.f[0] + (dotsize * f22) + (dotsize * spcc);
+						vertices[1].y = pos.f[1] + (dotsize * f00) + (dotsize * spc8);
+						vertices[1].z = pos.f[2] + (dotsize * f24) + (dotsize * spc4);
+
+						vertices[2].x = pos.f[0] + (dotsize * f22) + (-dotsize * spcc);
+						vertices[2].y = pos.f[1] + (dotsize * f00) + (-dotsize * spc8);
+						vertices[2].z = pos.f[2] + (dotsize * f24) + (-dotsize * spc4);
+
+						vertices[3].x = pos.f[0] + (-dotsize * f22) + (-dotsize * spcc);
+						vertices[3].y = pos.f[1] + (-dotsize * f00) + (-dotsize * spc8);
+						vertices[3].z = pos.f[2] + (-dotsize * f24) + (-dotsize * spc4);
+
+						gSPVertex(gdl++, osVirtualToPhysical(vertices), 4, 0);
+
+						gSPTri2(gdl++, 0, 1, 2, 2, 3, 0);
+					}
 				}
 			}
 		}
@@ -1369,70 +1381,92 @@ Gfx *lasersightRenderBeam(Gfx *gdl)
 				const f32 dx = spc0.x - spcc.x, dy = spc0.y - spcc.y, dz = spc0.z - spcc.z;
 				beamend = sqrtf(dx * dx + dy * dy + dz * dz);
 				beammid = beamend * 0.5f;
-				beamhalfwidth = 6.0f;
-				beamnearcol = 0xff2020c0;
-				beamfarcol = 0xff202070;
 			}
 #endif
 
 			guNormalize(&spb4.x, &spb4.y, &spb4.z);
 
-			colours = gfxAllocateColours(2);
+			// [weightyaim] the enhanced laser is drawn in layers: a wide faint glow,
+			// a tighter beam, and a thin hot core, with a slight flicker
+			s32 numpasses = 1;
+			f32 passwidth[3] = { beamhalfwidth, 0.f, 0.f };
+			u32 passnear[3] = { beamnearcol, 0, 0 };
+			u32 passfar[3] = { beamfarcol, 0, 0 };
 
-			colours[0].word = PD_BE32(beamnearcol);
-			colours[1].word = PD_BE32(beamfarcol);
+#ifndef PLATFORM_N64
+			if (weightyAimLaserEnhanced()) {
+				const f32 flicker = 0.9f + 0.07f * sinf(g_Vars.lvframenum * 2.3f) + 0.03f * sinf(g_Vars.lvframenum * 5.1f);
+				const u32 a0 = (u32)(0x30 * flicker), a1 = (u32)(0x80 * flicker), a2 = (u32)(0xf0 * flicker);
 
-			gSPColor(gdl++, osVirtualToPhysical(colours), 2);
+				numpasses = 3;
+				passwidth[0] = 20.0f; passnear[0] = 0xff101000 | a0;       passfar[0] = 0xff101000 | (a0 / 2);
+				passwidth[1] = 6.0f;  passnear[1] = 0xff282800 | a1;       passfar[1] = 0xff282800 | (a1 / 2);
+				passwidth[2] = 1.6f;  passnear[2] = 0xffd0d000 | a2;       passfar[2] = 0xffa0a000 | (a2 * 2 / 3);
+			}
+#endif
 
-			vertices = gfxAllocateVertices(6);
+			for (s32 pass = 0; pass < numpasses; pass++) {
+				beamhalfwidth = passwidth[pass];
+				beamnearcol = passnear[pass];
+				beamfarcol = passfar[pass];
 
-			vertices[0].colour = 0;
-			vertices[1].colour = 0;
-			vertices[2].colour = 0;
-			vertices[3].colour = 0;
-			vertices[4].colour = 4;
-			vertices[5].colour = 4;
+				colours = gfxAllocateColours(2);
 
-			vertices[0].s = 0;
-			vertices[0].t = 0;
-			vertices[1].s = 0;
-			vertices[1].t = 256;
-			vertices[2].s = 32;
-			vertices[2].t = 0;
-			vertices[3].s = 32;
-			vertices[3].t = 256;
-			vertices[4].s = 0;
-			vertices[4].t = 0;
-			vertices[5].s = 0;
-			vertices[5].t = 256;
+				colours[0].word = PD_BE32(beamnearcol);
+				colours[1].word = PD_BE32(beamfarcol);
 
-			vertices[0].x = spcc.f[0] - spa8.f[0] * beamhalfwidth;
-			vertices[0].y = spcc.f[1] - spa8.f[1] * beamhalfwidth;
-			vertices[0].z = spcc.f[2] - spa8.f[2] * beamhalfwidth;
+				gSPColor(gdl++, osVirtualToPhysical(colours), 2);
 
-			vertices[1].x = spcc.f[0] + spa8.f[0] * beamhalfwidth;
-			vertices[1].y = spcc.f[1] + spa8.f[1] * beamhalfwidth;
-			vertices[1].z = spcc.f[2] + spa8.f[2] * beamhalfwidth;
+				vertices = gfxAllocateVertices(6);
 
-			vertices[2].x = spcc.f[0] + (beammid * spb4.f[0]) - (spa8.f[0] * beamhalfwidth);
-			vertices[2].y = spcc.f[1] + (beammid * spb4.f[1]) - (spa8.f[1] * beamhalfwidth);
-			vertices[2].z = spcc.f[2] + (beammid * spb4.f[2]) - (spa8.f[2] * beamhalfwidth);
+				vertices[0].colour = 0;
+				vertices[1].colour = 0;
+				vertices[2].colour = 0;
+				vertices[3].colour = 0;
+				vertices[4].colour = 4;
+				vertices[5].colour = 4;
 
-			vertices[3].x = spcc.f[0] + (beammid * spb4.f[0]) + (spa8.f[0] * beamhalfwidth);
-			vertices[3].y = spcc.f[1] + (beammid * spb4.f[1]) + (spa8.f[1] * beamhalfwidth);
-			vertices[3].z = spcc.f[2] + (beammid * spb4.f[2]) + (spa8.f[2] * beamhalfwidth);
+				vertices[0].s = 0;
+				vertices[0].t = 0;
+				vertices[1].s = 0;
+				vertices[1].t = 256;
+				vertices[2].s = 32;
+				vertices[2].t = 0;
+				vertices[3].s = 32;
+				vertices[3].t = 256;
+				vertices[4].s = 0;
+				vertices[4].t = 0;
+				vertices[5].s = 0;
+				vertices[5].t = 256;
 
-			vertices[4].x = spcc.f[0] + (beamend * spb4.f[0]) - (spa8.f[0] * beamhalfwidth);
-			vertices[4].y = spcc.f[1] + (beamend * spb4.f[1]) - (spa8.f[1] * beamhalfwidth);
-			vertices[4].z = spcc.f[2] + (beamend * spb4.f[2]) - (spa8.f[2] * beamhalfwidth);
+				vertices[0].x = spcc.f[0] - spa8.f[0] * beamhalfwidth;
+				vertices[0].y = spcc.f[1] - spa8.f[1] * beamhalfwidth;
+				vertices[0].z = spcc.f[2] - spa8.f[2] * beamhalfwidth;
 
-			vertices[5].x = spcc.f[0] + (beamend * spb4.f[0]) + (spa8.f[0] * beamhalfwidth);
-			vertices[5].y = spcc.f[1] + (beamend * spb4.f[1]) + (spa8.f[1] * beamhalfwidth);
-			vertices[5].z = spcc.f[2] + (beamend * spb4.f[2]) + (spa8.f[2] * beamhalfwidth);
+				vertices[1].x = spcc.f[0] + spa8.f[0] * beamhalfwidth;
+				vertices[1].y = spcc.f[1] + spa8.f[1] * beamhalfwidth;
+				vertices[1].z = spcc.f[2] + spa8.f[2] * beamhalfwidth;
 
-			gSPVertex(gdl++, osVirtualToPhysical(vertices), 6, 0);
+				vertices[2].x = spcc.f[0] + (beammid * spb4.f[0]) - (spa8.f[0] * beamhalfwidth);
+				vertices[2].y = spcc.f[1] + (beammid * spb4.f[1]) - (spa8.f[1] * beamhalfwidth);
+				vertices[2].z = spcc.f[2] + (beammid * spb4.f[2]) - (spa8.f[2] * beamhalfwidth);
 
-			gSPTri4(gdl++, 0, 1, 2, 2, 3, 1, 2, 3, 5, 2, 5, 4);
+				vertices[3].x = spcc.f[0] + (beammid * spb4.f[0]) + (spa8.f[0] * beamhalfwidth);
+				vertices[3].y = spcc.f[1] + (beammid * spb4.f[1]) + (spa8.f[1] * beamhalfwidth);
+				vertices[3].z = spcc.f[2] + (beammid * spb4.f[2]) + (spa8.f[2] * beamhalfwidth);
+
+				vertices[4].x = spcc.f[0] + (beamend * spb4.f[0]) - (spa8.f[0] * beamhalfwidth);
+				vertices[4].y = spcc.f[1] + (beamend * spb4.f[1]) - (spa8.f[1] * beamhalfwidth);
+				vertices[4].z = spcc.f[2] + (beamend * spb4.f[2]) - (spa8.f[2] * beamhalfwidth);
+
+				vertices[5].x = spcc.f[0] + (beamend * spb4.f[0]) + (spa8.f[0] * beamhalfwidth);
+				vertices[5].y = spcc.f[1] + (beamend * spb4.f[1]) + (spa8.f[1] * beamhalfwidth);
+				vertices[5].z = spcc.f[2] + (beamend * spb4.f[2]) + (spa8.f[2] * beamhalfwidth);
+
+				gSPVertex(gdl++, osVirtualToPhysical(vertices), 6, 0);
+
+				gSPTri4(gdl++, 0, 1, 2, 2, 3, 1, 2, 3, 5, 2, 5, 4);
+			}
 		}
 	}
 

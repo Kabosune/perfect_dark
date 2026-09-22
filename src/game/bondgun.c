@@ -7670,6 +7670,11 @@ void bgun0f0a5550(s32 handnum)
 	sp274.f[0] += fspare1;
 	sp274.f[1] -= fspare2;
 
+#ifndef PLATFORM_N64
+	// [weightyaim] bring the gun up to the centre while aiming down sights
+	weightyAimAdjustGunPos(hand, handnum, &sp274);
+#endif
+
 	hand->visible = true;
 
 	if (!weaponHasFlag(weaponnum, WEAPONFLAG_00000040)

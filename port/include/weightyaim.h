@@ -20,9 +20,10 @@
 
 #define WEIGHTYAIM_PRESET_WEIGHTY 0 // free-aim with a crosshair (default)
 #define WEIGHTYAIM_PRESET_IMMERSIVE 1 // heavier, more flowing gun and camera, crosshair only when aiming
-#define WEIGHTYAIM_PRESET_CLASSIC 2 // the game's original crosshair sway (mod off)
-#define WEIGHTYAIM_PRESET_CUSTOM  3 // any slider changed by hand
-#define WEIGHTYAIM_NUM_PRESETS    4
+#define WEIGHTYAIM_PRESET_BORING  2 // plain modern FPS: crosshair locked to the centre, no sway
+#define WEIGHTYAIM_PRESET_CLASSIC 3 // the game's original crosshair sway (mod off)
+#define WEIGHTYAIM_PRESET_CUSTOM  4 // any slider changed by hand
+#define WEIGHTYAIM_NUM_PRESETS    5
 
 #define WEIGHTYAIM_CROSSHAIR_ALWAYS   0
 #define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing, shown when holding aim
@@ -43,7 +44,15 @@ struct weightyaimcfg {
 	f32 camerasway;      // idle breathing sway of the camera, degrees
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*
-	s32 laser;           // RE4-style laser sight on every gun: full beam to a bigger, brighter dot
+	s32 laser;           // RE4-style laser sight on every gun: glowing beam to a bright dot
+
+	// aim down sights (holding the aim button)
+	s32 ads;             // 1 = raise the gun to your eye, 0 = the game's own aim mode
+	f32 adszoom;         // zoom while aiming (1 = none)
+	f32 adstime;         // seconds to raise or lower the gun
+	f32 adssway;         // share of the sway kept while aiming (0..1)
+	f32 adszone;         // share of the free-aim zone kept while aiming (0..1)
+	f32 adsheight;       // fine-tune how high the gun sits when aimed (screen units, + = higher)
 };
 
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
@@ -98,6 +107,27 @@ void weightyAimResetBoostDefaults(s32 cfgindex);
  */
 void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f32 *freelookdy,
 		bool canlook, f32 mlookscale);
+
+struct hand;
+
+/*
+ * Hook 1a (bondmove.c, just before hook 1): when aiming down sights, keep the
+ * normal look controls instead of the game's aim mode (which freezes the
+ * camera and moves the crosshair). Returns true while aiming down sights.
+ */
+struct movedata;
+bool weightyAimPrepareMove(struct movedata *movedata);
+
+/*
+ * Hook 1b (bondmove.c, zoom): the field of view to zoom to this frame.
+ */
+f32 weightyAimAdjustZoomFov(f32 zoomfov);
+
+/*
+ * Hook 1c (bondgun.c, gun placement): moves the gun model toward the centre
+ * of the screen, lined up with its barrel, while aiming down sights.
+ */
+void weightyAimAdjustGunPos(struct hand *hand, s32 handnum, struct coord *pos);
 
 /*
  * Hook 2 (bondmove.c, crosshair swivel): true when Weighty Aim is driving the

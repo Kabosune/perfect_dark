@@ -1947,6 +1947,11 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 			zoomfov = PLAYER_DEFAULT_FOV;
 		}
 
+#ifndef PLATFORM_N64
+		// [weightyaim] zoom in a little while aiming down sights
+		zoomfov = weightyAimAdjustZoomFov(zoomfov);
+#endif
+
 		playerTweenFovY(zoomfov);
 		playerUpdateZoom();
 	}
@@ -1954,6 +1959,9 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 	bmoveApplyMoveData(&movedata);
 
 #ifndef PLATFORM_N64
+	// [weightyaim] Aim down sights: keep normal look controls while aiming
+	weightyAimPrepareMove(&movedata);
+
 	// [weightyaim] Free-aim: look input moves the gun inside a deadzone first,
 	// only the leftover reaches the camera code below.
 	weightyAimFilterLook(&movedata.analogturn, &movedata.analogpitch, &movedata.freelookdx, &movedata.freelookdy,

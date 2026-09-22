@@ -15,6 +15,7 @@
  *   Aim & Camera Feel...   free-aim zone, gun weight, camera lead, sway
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
+ *   Aim Down Sights...     raising the gun to your eye when holding aim
  *   Crosshair / Laser Sight / Debug Log / Reset
  *
  * Sliders are table driven: each page has a table of weightyaimslider rows
@@ -31,6 +32,7 @@ struct weightyaimslider {
 	const char *fmt;       // printf format for the value shown next to the slider
 	const char *zerolabel; // shown instead of the number when the value is 0 (optional)
 	s32 percent;           // show value * 100
+	f32 base;              // value at the leftmost notch (for ranges that go negative)
 };
 
 struct weightyaimsliderpage {
@@ -255,6 +257,52 @@ struct menudialogdef g_WeightyAimBoostMenuDialog = {
 };
 
 /* ------------------------------------------------------------------------
+ * Aim Down Sights
+ */
+
+static const struct weightyaimslider g_WeightyAimAdsSliders[] = {
+	{ AIMFIELD(adszoom),   0.05f, 1.f,   "%.2fx",  NULL,   0, 1.f },
+	{ AIMFIELD(adstime),   0.02f, 0.f,   "%.2fs",  "Instant", 0, 0.f },
+	{ AIMFIELD(adssway),   0.05f, 0.f,   "%.0f%%", "None", 1, 0.f },
+	{ AIMFIELD(adszone),   0.05f, 0.f,   "%.0f%%", "None", 1, 0.f },
+	{ AIMFIELD(adsheight), 0.25f, -5.f,  "%+.2f",  NULL,   0, -5.f },
+};
+
+static MenuItemHandlerResult menuhandlerWeightyAimAds(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return weightyAimMenuCfg()->ads;
+	case MENUOP_SET:
+		weightyAimMenuCfg()->ads = data->checkbox.value;
+		weightyAimMenuCfg()->preset = WEIGHTYAIM_PRESET_CUSTOM;
+		break;
+	}
+
+	return 0;
+}
+
+struct menuitem g_WeightyAimAdsMenuItems[] = {
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
+	// order must match g_WeightyAimAdsSliders
+	WEIGHTYAIM_SLIDER("Zoom", 40),                  // 1 - 3x
+	WEIGHTYAIM_SLIDER("Raise Time", 25),            // 0 - 0.5 s
+	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),     // 0 - 100 %
+	WEIGHTYAIM_SLIDER("Free-Aim While Aiming", 20), // 0 - 100 %
+	WEIGHTYAIM_SLIDER("Sight Height", 40),          // -5 - +5
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimAdsMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Aim Down Sights",
+	g_WeightyAimAdsMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+/* ------------------------------------------------------------------------
  * Shared slider handler
  */
 
@@ -262,6 +310,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimFeelMenuItems,  0, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 	{ g_WeightyAimStickMenuItems, 1, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
+	{ g_WeightyAimAdsMenuItems,   1, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
@@ -292,21 +341,22 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
 
 	switch (operation) {
 	case MENUOP_GETSLIDER:
-		data->slider.value = (u32)(*field / sl->step + 0.5f);
+		value = (*field - sl->base) / sl->step + 0.5f;
+		data->slider.value = value > 0.f ? (u32)value : 0;
 		break;
 	case MENUOP_SET:
-		value = data->slider.value * sl->step;
+		value = sl->base + data->slider.value * sl->step;
 		*field = value < sl->min ? sl->min : value;
 		if (page->onchange) {
 			page->onchange(index);
 		}
 		break;
 	case MENUOP_GETSLIDERLABEL:
-		value = data->slider.value * sl->step;
+		value = sl->base + data->slider.value * sl->step;
 		if (value < sl->min) {
 			value = sl->min;
 		}
-		if (sl->zerolabel && value <= 0.f) {
+		if (sl->zerolabel && value <= 0.f && sl->base >= 0.f) {
 			strcpy(data->slider.label, sl->zerolabel);
 		} else {
 			sprintf(data->slider.label, sl->fmt, sl->percent ? value * 100.f : value);
@@ -410,6 +460,7 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Turn Boost...\n", g_WeightyAimBoostMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Aim Down Sights...\n", g_WeightyAimAdsMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Sight", 0, menuhandlerWeightyAimLaser },

@@ -11,6 +11,8 @@
 #include "lib/mtx.h"
 #include "game/camera.h"
 #include "game/gunfx.h"
+#include "game/game_0b0fd0.h"
+#include "game/bondgun.h"
 #include "config.h"
 #include "system.h"
 #include "utils.h"
@@ -108,6 +110,10 @@ struct weightyaimstate {
 	f32 idletime;    // seconds since the last look input
 	f32 boostheld;   // seconds the stick has been held past the boost threshold
 	f32 boostlevel;  // current turn boost, 0..1
+	bool adsheld;    // aim button held with aim-down-sights on, this frame
+	f32 adsblend;    // 0 = hip, 1 = fully aimed down sights (linear, see weightyAimAdsAmount)
+	f32 gunpos[3];   // where the gun model was placed last frame (camera space)
+	bool gunposvalid;
 	f32 swayphase[3];// camera sway oscillator phases (breath, drift, footsteps)
 	f32 sway[2];     // camera sway offset applied last frame, degrees
 	bool active;     // Weighty Aim drove this player's crosshair on the last update
@@ -123,6 +129,7 @@ static f32 g_WeightyAimPatternTime = 0.f;
 const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 	"Weighty",
 	"Immersive",
+	"Boring",
 	"Classic",
 	"Custom",
 };
@@ -132,7 +139,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.preset = WEIGHTYAIM_PRESET_WEIGHTY,
 	.deadzonex = 8.5f,
 	.deadzoney = 5.f,
-	.camerashare = 0.3f,
+	.camerashare = 0.35f,
 	.cameralead = 0.9f,
 	.recenterspeed = 1.f,
 	.recenterdelay = 0.25f,
@@ -144,6 +151,12 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.walksway = 0.35f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
 	.laser = 0,
+	.ads = 1,
+	.adszoom = 1.3f,
+	.adstime = 0.18f,
+	.adssway = 0.35f,
+	.adszone = 0.25f,
+	.adsheight = 0.f,
 };
 
 // Immersive: wide zone, heavy flowing gun, a camera that follows and never sits still
@@ -151,7 +164,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.preset = WEIGHTYAIM_PRESET_IMMERSIVE,
 	.deadzonex = 11.f,
 	.deadzoney = 6.5f,
-	.camerashare = 0.35f,
+	.camerashare = 0.4f,
 	.cameralead = 1.4f,
 	.recenterspeed = 1.3f,
 	.recenterdelay = 0.15f,
@@ -163,6 +176,38 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.walksway = 1.1f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_AIMONLY,
 	.laser = 1,
+	.ads = 1,
+	.adszoom = 1.25f,
+	.adstime = 0.26f,
+	.adssway = 0.5f,
+	.adszone = 0.35f,
+	.adsheight = 0.f,
+};
+
+// Boring: what most shooters do. Crosshair locked to the centre, the camera
+// follows the stick directly, no gun lag, no sway.
+static const struct weightyaimcfg g_WeightyAimPresetBoring = {
+	.preset = WEIGHTYAIM_PRESET_BORING,
+	.deadzonex = 0.f,
+	.deadzoney = 0.f,
+	.camerashare = 1.f,
+	.cameralead = 0.f,
+	.recenterspeed = 0.f,
+	.recenterdelay = 0.f,
+	.gunresponse = 20.f,
+	.gundamping = 1.f,
+	.turndrag = 0.f,
+	.edgesmoothing = 0.f,
+	.camerasway = 0.f,
+	.walksway = 0.f,
+	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
+	.laser = 0,
+	.ads = 1,
+	.adszoom = 1.35f,
+	.adstime = 0.12f,
+	.adssway = 0.f,
+	.adszone = 0.f,
+	.adsheight = 0.f,
 };
 
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
@@ -175,6 +220,9 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 		break;
 	case WEIGHTYAIM_PRESET_IMMERSIVE:
 		*cfg = g_WeightyAimPresetImmersive;
+		break;
+	case WEIGHTYAIM_PRESET_BORING:
+		*cfg = g_WeightyAimPresetBoring;
 		break;
 	case WEIGHTYAIM_PRESET_CLASSIC:
 	case WEIGHTYAIM_PRESET_CUSTOM:
@@ -420,6 +468,15 @@ static void weightyAimStepSpring(struct weightyaimstate *st, const struct weight
 	}
 }
 
+/**
+ * How far into aiming down sights we are, eased (0 = hip, 1 = aimed).
+ */
+static inline f32 weightyAimAdsAmount(const struct weightyaimstate *st)
+{
+	const f32 b = st->adsblend;
+	return b * b * (3.f - 2.f * b);
+}
+
 static void weightyAimResetState(struct weightyaimstate *st)
 {
 	st->target[0] = st->target[1] = 0.f;
@@ -467,10 +524,22 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	reqdeg[0] = stickdeg[0] + mousedeg[0];
 	reqdeg[1] = stickdeg[1] + mousedeg[1];
 
+	// Raise or lower the gun for aiming down sights
+	{
+		const f32 goal = st->adsheld ? 1.f : 0.f;
+		const f32 step = dtsec / (cfg->adstime > 0.01f ? cfg->adstime : 0.01f);
+
+		if (st->adsblend < goal) {
+			st->adsblend = clampf(st->adsblend + step, 0.f, goal);
+		} else if (st->adsblend > goal) {
+			st->adsblend = clampf(st->adsblend - step, goal, 1.f);
+		}
+	}
+
 	active = weightyAimCfgEnabled(cfg)
 		&& canlook
 		&& g_Vars.currentplayer->bondmovemode == MOVEMODE_WALK
-		&& !g_Vars.currentplayer->insightaimmode
+		&& (!g_Vars.currentplayer->insightaimmode || st->adsheld)
 		&& !g_Vars.currentplayer->isdead
 		&& g_Vars.tickmode == TICKMODE_NORMAL;
 
@@ -487,15 +556,29 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			*freelookdy += stickrate[1] / mlookscale;
 		}
 	} else {
-		const f32 zx = clampf(cfg->deadzonex, 0.05f, 45.f);
-		const f32 zy = clampf(cfg->deadzoney, 0.05f, 45.f);
+		// While aiming down sights the zone shrinks, the camera takes over more of
+		// the turning, sway calms down and the gun steadies.
+		const f32 ads = weightyAimAdsAmount(st);
+		struct weightyaimcfg effcfg = *cfg;
+		struct weightyaimcfg *ec = &effcfg;
+
+		ec->deadzonex *= 1.f + (clampf(cfg->adszone, 0.f, 1.f) - 1.f) * ads;
+		ec->deadzoney *= 1.f + (clampf(cfg->adszone, 0.f, 1.f) - 1.f) * ads;
+		ec->camerashare += (1.f - ec->camerashare) * ads * (1.f - clampf(cfg->adszone, 0.f, 1.f));
+		ec->camerasway *= 1.f + (clampf(cfg->adssway, 0.f, 1.f) - 1.f) * ads;
+		ec->walksway *= 1.f + (clampf(cfg->adssway, 0.f, 1.f) - 1.f) * ads;
+		ec->turndrag *= 1.f - 0.6f * ads;
+		ec->gunresponse *= 1.f + 0.8f * ads;
+
+		const f32 zx = clampf(ec->deadzonex, 0.05f, 45.f);
+		const f32 zy = clampf(ec->deadzoney, 0.05f, 45.f);
 		f32 reqlen, ellipse;
 
 		// 1. Every look movement is split: part turns the camera right away (so the
 		//    view always answers the stick), the rest moves the gun inside the zone.
 		//    The two always add up to exactly the input, so aim speed never changes.
-		const f32 share = clampf(cfg->camerashare, 0.f, 1.f);
-		const f32 drag = clampf(cfg->turndrag, 0.f, 1.f);
+		const f32 share = clampf(ec->camerashare, 0.f, 1.f);
+		const f32 drag = clampf(ec->turndrag, 0.f, 1.f);
 
 		reqlen = bc_sqrtf(reqdeg[0] * reqdeg[0] + reqdeg[1] * reqdeg[1]);
 
@@ -522,11 +605,16 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			}
 		}
 
-		// If the zone was shrunk from the menu, pull the target back inside
+		// If the zone shrank (aiming down sights, or a menu change), the part of the
+		// gun that's now outside it becomes overflow, so the camera eases toward
+		// it and the gun keeps pointing at the same spot
 		ellipse = (st->target[0] / zx) * (st->target[0] / zx) + (st->target[1] / zy) * (st->target[1] / zy);
 
 		if (ellipse > 1.f) {
 			const f32 scale = 1.f / bc_sqrtf(ellipse);
+
+			st->over[0] += st->target[0] - st->target[0] * scale;
+			st->over[1] += st->target[1] - st->target[1] * scale;
 			st->target[0] *= scale;
 			st->target[1] *= scale;
 		}
@@ -541,9 +629,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			const f32 overlen = bc_sqrtf(st->over[0] * st->over[0] + st->over[1] * st->over[1]);
 			f32 k = 1.f;
 
-			if (cfg->edgesmoothing > 0.001f && overlen > 0.f) {
+			if (ec->edgesmoothing > 0.001f && overlen > 0.f) {
 				const f32 pressure = overlen / softcap;
-				const f32 rate = (1.f / cfg->edgesmoothing) * (1.f + pressure * pressure);
+				const f32 rate = (1.f / ec->edgesmoothing) * (1.f + pressure * pressure);
 				k = 1.f - bc_expf(-rate * dtsec);
 			}
 
@@ -594,10 +682,10 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			if (st->over[0] != 0.f || st->over[1] != 0.f) {
 				// already turning from the edge; leading as well would slow that turn down
 				rate = 0.f;
-			} else if (st->idletime > cfg->recenterdelay) {
-				rate = cfg->recenterspeed;
+			} else if (st->idletime > ec->recenterdelay) {
+				rate = ec->recenterspeed;
 			} else if (reqlen > 0.0001f || st->idletime > 0.f) {
-				rate = cfg->cameralead * edgeness;
+				rate = ec->cameralead * edgeness;
 			}
 
 			if (rate > 0.f) {
@@ -614,10 +702,24 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			}
 		}
 
+		// 4b. Raising the gun to your eye: the camera swings to where the gun
+		//     points, so aiming down sights keeps your aim instead of jumping
+		if (ads > 0.f) {
+			const f32 rate = ads * 5.f / (cfg->adstime > 0.05f ? cfg->adstime : 0.05f);
+			const f32 k = 1.f - bc_expf(-rate * dtsec);
+
+			for (s32 i = 0; i < 2; i++) {
+				const f32 r = st->target[i] * k;
+				st->target[i] -= r;
+				st->display[i] -= r;
+				camdeg[i] += r;
+			}
+		}
+
 		// 5. Camera sway: slow breathing drift plus a footstep rhythm while moving.
 		//    Applied as a bounded offset (this frame's value minus last frame's) so
 		//    the view wobbles around where you point it and never drifts away.
-		if (cfg->camerasway > 0.f || cfg->walksway > 0.f) {
+		if (ec->camerasway > 0.f || ec->walksway > 0.f) {
 			const struct player *pl = g_Vars.currentplayer;
 			const f32 movefrac = clampf(bc_sqrtf(pl->speedforwards * pl->speedforwards
 						+ pl->speedsideways * pl->speedsideways), 0.f, 1.f);
@@ -628,20 +730,20 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			st->swayphase[1] = bc_fmodf(st->swayphase[1] + dtsec * 0.61f * tau, tau);             // slow drift
 			st->swayphase[2] = bc_fmodf(st->swayphase[2] + dtsec * (0.9f + movefrac) * tau, tau); // footsteps
 
-			sway[0] = cfg->camerasway * (0.55f * bc_sinf(st->swayphase[1]) + 0.25f * bc_sinf(st->swayphase[0] * 0.5f + 1.3f))
-				+ cfg->walksway * movefrac * 0.6f * bc_sinf(st->swayphase[2]);
-			sway[1] = cfg->camerasway * (0.6f * bc_sinf(st->swayphase[0]) + 0.2f * bc_sinf(st->swayphase[1] * 1.7f + 0.7f))
-				- cfg->walksway * movefrac * 0.5f * bc_fabsf(bc_sinf(st->swayphase[2]));
+			sway[0] = ec->camerasway * (0.55f * bc_sinf(st->swayphase[1]) + 0.25f * bc_sinf(st->swayphase[0] * 0.5f + 1.3f))
+				+ ec->walksway * movefrac * 0.6f * bc_sinf(st->swayphase[2]);
+			sway[1] = ec->camerasway * (0.6f * bc_sinf(st->swayphase[0]) + 0.2f * bc_sinf(st->swayphase[1] * 1.7f + 0.7f))
+				- ec->walksway * movefrac * 0.5f * bc_fabsf(bc_sinf(st->swayphase[2]));
 
 			for (s32 i = 0; i < 2; i++) {
 				const f32 delta = sway[i] - st->sway[i];
 				camdeg[i] += delta;
-				st->display[i] -= delta * clampf(cfg->turndrag, 0.f, 1.f) * 0.5f; // hands lag the body a little
+				st->display[i] -= delta * clampf(ec->turndrag, 0.f, 1.f) * 0.5f; // hands lag the body a little
 				st->sway[i] = sway[i];
 			}
 		}
 
-		weightyAimStepSpring(st, cfg, dtsec);
+		weightyAimStepSpring(st, ec, dtsec);
 
 		// keep the gun on screen even after a violent turn
 		st->display[0] = clampf(st->display[0], -zx * 2.f - 10.f, zx * 2.f + 10.f);
@@ -688,7 +790,9 @@ bool weightyAimIsActive(void)
 
 bool weightyAimHideCrosshair(void)
 {
-	return weightyAimCurCfg()->crosshair == WEIGHTYAIM_CROSSHAIR_AIMONLY && weightyAimIsActive();
+	return weightyAimCurCfg()->crosshair == WEIGHTYAIM_CROSSHAIR_AIMONLY
+		&& weightyAimIsActive()
+		&& !g_Vars.currentplayer->insightaimmode;
 }
 
 void weightyAimGetCrosshair(f32 *x, f32 *y)
@@ -702,6 +806,120 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
 	// project the gun direction onto the screen; +y is down in bgunSwivel units
 	*x = clampf(bc_tanf(DEG2RAD(st->display[0])) / tanhalfx, -0.97f, 0.97f);
 	*y = clampf(-bc_tanf(DEG2RAD(st->display[1])) / tanhalfy, -0.97f, 0.97f);
+}
+
+/*
+ * Aim down sights
+ */
+
+static bool weightyAimIsFirearm(s32 weaponnum);
+
+static bool weightyAimAdsWeapon(s32 weaponnum)
+{
+	// the Farsight keeps its own auto-seeking aim mode
+	return weightyAimIsFirearm(weaponnum) && weaponnum != WEAPON_FARSIGHT;
+}
+
+bool weightyAimPrepareMove(struct movedata *movedata)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+	struct weightyaimstate *st = weightyAimCurState();
+
+	st->adsheld = weightyAimCfgEnabled(cfg)
+		&& cfg->ads
+		&& g_Vars.currentplayer->insightaimmode
+		&& g_Vars.currentplayer->bondmovemode == MOVEMODE_WALK
+		&& g_Vars.tickmode == TICKMODE_NORMAL
+		&& weightyAimAdsWeapon(bgunGetWeaponNum(HAND_RIGHT));
+
+	if (st->adsheld) {
+		// keep looking around normally instead of the game's aim mode, where
+		// the camera freezes and the stick moves the crosshair
+		movedata->cannaturalturn = true;
+		movedata->cannaturalpitch = true;
+		movedata->canswivelgun = true;
+		movedata->canmanualaim = false;
+		movedata->aimturnleftspeed = 0.f;
+		movedata->aimturnrightspeed = 0.f;
+		movedata->speedvertaup = 0.f;
+		movedata->speedvertadown = 0.f;
+	}
+
+	return st->adsheld;
+}
+
+f32 weightyAimAdjustZoomFov(f32 zoomfov)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+	const struct weightyaimstate *st = weightyAimCurState();
+	const f32 ads = weightyAimAdsAmount(st);
+
+	// only zoom guns without their own scope zoom
+	if (!weightyAimCfgEnabled(cfg) || !cfg->ads || ads <= 0.f || zoomfov < PLAYER_DEFAULT_FOV - 0.01f) {
+		return zoomfov;
+	}
+
+	return zoomfov / (1.f + (clampf(cfg->adszoom, 1.f, 3.f) - 1.f) * ads);
+}
+
+/**
+ * Line the gun up with the centre of the screen while aiming down sights.
+ *
+ * Instead of hand-tuning every weapon, this measures where the gun's barrel
+ * ended up relative to the gun's origin last frame, and moves the gun so the
+ * barrel sits just below the centre of the screen, where the sights are.
+ */
+void weightyAimAdjustGunPos(struct hand *hand, s32 handnum, struct coord *pos)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+	struct weightyaimstate *st = weightyAimCurState();
+	const f32 ads = weightyAimAdsAmount(st);
+	const f32 gunzoom = currentPlayerGetGunZoomFov();
+
+	if (handnum != HAND_RIGHT) {
+		return;
+	}
+
+	// scoped weapons keep their scope view; dual wielding keeps both guns apart
+	if (ads > 0.f && !(gunzoom > 0.f && gunzoom < PLAYER_DEFAULT_FOV - 0.01f)
+			&& !g_Vars.currentplayer->hands[HAND_LEFT].inuse) {
+		f32 rel[3];
+		f32 target[2];
+		f32 depth;
+		bool relok = false;
+
+		if (st->gunposvalid) {
+			rel[0] = hand->muzzlemat.m[3][0] - st->gunpos[0];
+			rel[1] = hand->muzzlemat.m[3][1] - st->gunpos[1];
+			rel[2] = hand->muzzlemat.m[3][2] - st->gunpos[2];
+			relok = bc_fabsf(rel[0]) < 60.f && bc_fabsf(rel[1]) < 60.f && bc_fabsf(rel[2]) < 120.f;
+		}
+
+		if (!relok) {
+			// no barrel to measure: a reasonable guess for a pistol-sized gun
+			rel[0] = 0.f;
+			rel[1] = 3.f;
+			rel[2] = -12.f;
+		}
+
+		// the barrel sits a little below the line of sight
+		depth = -(pos->z + rel[2]);
+
+		if (depth < 5.f) {
+			depth = 5.f;
+		}
+
+		target[0] = -rel[0];
+		target[1] = -rel[1] - depth * 0.021f + cfg->adsheight;
+
+		pos->x += (target[0] - pos->x) * ads;
+		pos->y += (target[1] - pos->y) * ads;
+	}
+
+	st->gunpos[0] = pos->x;
+	st->gunpos[1] = pos->y;
+	st->gunpos[2] = pos->z;
+	st->gunposvalid = true;
 }
 
 /*
@@ -786,6 +1004,12 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.WalkSway", i), &g_WeightyAimCfg[j].walksway, 0.f, 5.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.Crosshair", i), &g_WeightyAimCfg[j].crosshair, 0, 1);
 		configRegisterInt(strFmt("WeightyAim.Player%d.LaserSight", i), &g_WeightyAimCfg[j].laser, 0, 1);
+		configRegisterInt(strFmt("WeightyAim.Player%d.AimDownSights", i), &g_WeightyAimCfg[j].ads, 0, 1);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsZoom", i), &g_WeightyAimCfg[j].adszoom, 1.f, 3.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsTime", i), &g_WeightyAimCfg[j].adstime, 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsSway", i), &g_WeightyAimCfg[j].adssway, 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsZone", i), &g_WeightyAimCfg[j].adszone, 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AdsHeight", i), &g_WeightyAimCfg[j].adsheight, -10.f, 10.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.StickCurve", i), &g_WeightyAimStickCfg[j].curve, 0, WEIGHTYAIM_NUM_CURVES - 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickInnerDeadzone", i), &g_WeightyAimStickCfg[j].innerdeadzone, 0.f, 0.9f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickOuterDeadzone", i), &g_WeightyAimStickCfg[j].outerdeadzone, 0.1f, 1.f);
