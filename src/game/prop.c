@@ -39,6 +39,9 @@
 #include "lib/lib_317f0.h"
 #include "data.h"
 #include "types.h"
+#ifndef PLATFORM_N64
+#include "weightyaim.h" // [weightyaim]
+#endif
 
 s16 *g_RoomPropListChunkIndexes;
 struct roomproplistchunk *g_RoomPropListChunks;
@@ -2574,6 +2577,11 @@ f32 func0f06438c(struct prop *prop, struct coord *arg1, f32 *arg2, f32 *arg3, f3
 				if (!g_Vars.normmplayerisrunning) {
 					sp48 = sp48 * g_AutoAimScale;
 				}
+
+#ifndef PLATFORM_N64
+				// [weightyaim] Reduced aim assist: shrink the game's window, never widen it
+				sp48 = sp48 * weightyAimAssistScale();
+#endif
 
 				sp4c = camGetScreenLeft() + 0.5f * camGetScreenWidth() >= (sp8c[0] + sp84[0]) * 0.5f - sp48
 					&& camGetScreenLeft() + 0.5f * camGetScreenWidth() <= (sp8c[0] + sp84[0]) * 0.5f + sp48

@@ -95,6 +95,14 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
+#define WEIGHTYAIM_ASSIST_DEFAULT 0 // whatever the game and difficulty give you
+#define WEIGHTYAIM_ASSIST_REDUCED 1 // half of that
+#define WEIGHTYAIM_ASSIST_OFF     2 // none, on any difficulty
+#define WEIGHTYAIM_NUM_ASSISTS    3
+
+extern s32 g_WeightyAimAssist[4];                            // WEIGHTYAIM_ASSIST_*, per player
+extern const char *g_WeightyAimAssistNames[WEIGHTYAIM_NUM_ASSISTS];
+
 extern struct weightyaimcfg g_WeightyAimCfg[4];            // live settings
 extern struct weightyaimcfg g_WeightyAimCustomCfg[4][3];     // saved Custom 1-3 profiles
 extern s32 g_WeightyAimLastCustom[4];                        // custom profile edited from a built-in preset
@@ -142,6 +150,15 @@ f32 weightyAimAdjustZoomFov(f32 zoomfov);
  * of the screen, lined up with its barrel, while aiming down sights.
  */
 void weightyAimAdjustGunPos(struct hand *hand, s32 handnum, struct coord *pos);
+
+/*
+ * Hook 6 (bondmove.c auto-aim checks and prop.c auto-aim window): aim assist
+ * can only be reduced or turned off, never made stronger than the game and
+ * difficulty allow. weightyAimAssistAllowed() is false when turned off;
+ * weightyAimAssistScale() (0..1) multiplies the game's own aim assist window.
+ */
+bool weightyAimAssistAllowed(void);
+f32 weightyAimAssistScale(void);
 
 /*
  * Hook 2 (bondmove.c, crosshair swivel): true when Weighty Aim is driving the

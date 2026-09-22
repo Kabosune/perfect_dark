@@ -16,7 +16,7 @@
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
  *   Aim Down Sights...     raising the gun to your eye when holding aim
- *   Crosshair / Laser Sight / Debug Log / Reset
+ *   Crosshair / Laser Sight / Aim Assist / Debug Log / Reset
  *
  * Sliders are table driven: each page has a table of weightyaimslider rows
  * that must be in the same order as its slider items. Adding a tunable is:
@@ -438,6 +438,27 @@ static MenuItemHandlerResult menuhandlerWeightyAimLaser(s32 operation, struct me
 	return 0;
 }
 
+static MenuItemHandlerResult menuhandlerWeightyAimAssist(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	s32 *assist = &g_WeightyAimAssist[optionsGetExtMenuPlayer() & 3];
+
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_ASSISTS;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimAssistNames[data->dropdown.value];
+	case MENUOP_SET:
+		*assist = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = *assist;
+		break;
+	}
+
+	return 0;
+}
+
 static MenuItemHandlerResult menuhandlerWeightyAimDebugLog(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -473,6 +494,7 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Sight", 0, menuhandlerWeightyAimLaser },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Assist", 0, menuhandlerWeightyAimAssist },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Debug Log", 0, menuhandlerWeightyAimDebugLog },
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset to Weighty Preset\n", 0, menuhandlerWeightyAimReset },
 	WEIGHTYAIM_BACK,

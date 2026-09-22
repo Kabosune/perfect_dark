@@ -145,6 +145,13 @@ bool bmoveIsAutoAimYEnabledForCurrentWeapon(void)
 {
 	struct weaponfunc *func = currentPlayerGetWeaponFunction(0);
 
+#ifndef PLATFORM_N64
+	// [weightyaim] aim assist turned off in Weighty Aim: off on every difficulty
+	if (!weightyAimAssistAllowed()) {
+		return false;
+	}
+#endif
+
 	if (func) {
 		if (func->flags & FUNCFLAG_NOAUTOAIM) {
 			return false;
@@ -202,6 +209,13 @@ bool bmoveIsAutoAimXEnabled(void)
 bool bmoveIsAutoAimXEnabledForCurrentWeapon(void)
 {
 	struct weaponfunc *func = currentPlayerGetWeaponFunction(0);
+
+#ifndef PLATFORM_N64
+	// [weightyaim] aim assist turned off in Weighty Aim: off on every difficulty
+	if (!weightyAimAssistAllowed()) {
+		return false;
+	}
+#endif
 
 	if (func) {
 		if (func->flags & FUNCFLAG_NOAUTOAIM) {

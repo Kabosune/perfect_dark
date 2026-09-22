@@ -14,6 +14,7 @@
 #include "game/gunfx.h"
 #include "game/game_0b0fd0.h"
 #include "game/bondgun.h"
+#include "game/bondmove.h"
 #include "config.h"
 #include "system.h"
 #include "utils.h"
@@ -41,12 +42,20 @@
 #define bc_sqrtf __builtin_sqrtf
 #define bc_sinf  __builtin_sinf
 #define bc_fabsf __builtin_fabsf
+#define bc_atanf __builtin_atanf
 
 #define DEG_PER_SPEED_TICK 3.5f
 #define SPRING_STEP (1.f / 240.f)
 
 struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
+s32 g_WeightyAimAssist[4];
+
+const char *g_WeightyAimAssistNames[WEIGHTYAIM_NUM_ASSISTS] = {
+	"Game Default",
+	"Reduced",
+	"Off",
+};
 s32 g_WeightyAimLastCustom[4];
 struct weightyaimstickcfg g_WeightyAimStickCfg[4];
 
@@ -158,6 +167,8 @@ struct weightyaimstate {
 	bool adsheld;    // aim button held with aim-down-sights on, this frame
 	f32 adsblend;    // 0 = hip, 1 = fully aimed down sights (linear, see weightyAimAdsAmount)
 	f32 gunpos[3];   // where the gun model was placed last frame (camera space)
+	bool assistlock; // the game's auto-aim has a target this frame and may pull the crosshair
+	f32 assist[2];   // extra gun offset from auto-aim, degrees
 	bool gunposvalid;
 	f32 swayphase[3];// camera sway oscillator phases (breath, drift, footsteps)
 	f32 sway[2];     // camera sway offset applied last frame, degrees
@@ -538,7 +549,7 @@ static void weightyAimStepSpring(struct weightyaimstate *st, const struct weight
 
 	for (s32 s = 0; s < steps; s++) {
 		for (s32 i = 0; i < 2; i++) {
-			const f32 acc = k * (st->target[i] + st->over[i] - st->display[i]) - c * st->vel[i];
+			const f32 acc = k * (st->target[i] + st->over[i] + st->assist[i] - st->display[i]) - c * st->vel[i];
 			st->vel[i] += acc * h;
 			st->display[i] += st->vel[i] * h;
 		}
@@ -560,6 +571,7 @@ static void weightyAimResetState(struct weightyaimstate *st)
 	st->display[0] = st->display[1] = 0.f;
 	st->vel[0] = st->vel[1] = 0.f;
 	st->over[0] = st->over[1] = 0.f;
+	st->assist[0] = st->assist[1] = 0.f;
 	st->idletime = 0.f;
 	st->sway[0] = st->sway[1] = 0.f;
 }
@@ -820,6 +832,30 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			}
 		}
 
+		// 6. Aim assist: the game's auto-aim moves the crosshair (not the camera)
+		//    onto the target it picked, just like it does without the mod, so
+		//    it's never stronger than the game and difficulty allow
+		{
+			f32 want[2] = { 0.f, 0.f };
+
+			if (st->assistlock) {
+				const f32 tanhalfy = bc_tanf(DEG2RAD(viGetFovY() * 0.5f));
+				const f32 tanhalfx = tanhalfy * (viGetAspect() > 0.f ? viGetAspect() : 1.333f);
+				const f32 tx = clampf(g_Vars.currentplayer->autoaimx, -1.f, 1.f);
+				const f32 ty = clampf(g_Vars.currentplayer->autoaimy, -1.f, 1.f);
+				const f32 targetyaw = RAD2DEG(bc_atanf(tx * tanhalfx));
+				const f32 targetpitch = -RAD2DEG(bc_atanf(ty * tanhalfy));
+
+				want[0] = targetyaw - (st->target[0] + st->over[0]);
+				want[1] = targetpitch - (st->target[1] + st->over[1]);
+			}
+
+			// eases on and off at about the speed the game's own auto-aim moves
+			const f32 k = 1.f - bc_expf(-dtsec / 0.35f);
+			st->assist[0] += (want[0] - st->assist[0]) * k;
+			st->assist[1] += (want[1] - st->assist[1]) * k;
+		}
+
 		weightyAimStepSpring(st, ec, dtsec);
 
 		// keep the gun on screen even after a violent turn
@@ -886,6 +922,27 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
 }
 
 /*
+ * Aim assist limits
+ */
+
+bool weightyAimAssistAllowed(void)
+{
+	return g_WeightyAimAssist[g_Vars.currentplayerstats->mpindex & 3] != WEIGHTYAIM_ASSIST_OFF;
+}
+
+f32 weightyAimAssistScale(void)
+{
+	switch (g_WeightyAimAssist[g_Vars.currentplayerstats->mpindex & 3]) {
+	case WEIGHTYAIM_ASSIST_REDUCED:
+		return 0.5f;
+	case WEIGHTYAIM_ASSIST_OFF:
+		return 0.f;
+	default:
+		return 1.f;
+	}
+}
+
+/*
  * Aim down sights
  */
 
@@ -908,6 +965,19 @@ bool weightyAimPrepareMove(struct movedata *movedata)
 		&& g_Vars.currentplayer->bondmovemode == MOVEMODE_WALK
 		&& g_Vars.tickmode == TICKMODE_NORMAL
 		&& weightyAimAdsWeapon(bgunGetWeaponNum(HAND_RIGHT));
+
+	// Aim assist: the same conditions under which the game itself would pull the
+	// crosshair onto a target (auto-aim on for this weapon, not in aim mode, a
+	// target inside the game's difficulty-scaled window)
+	{
+		const s32 weaponnum = bgunGetWeaponNum(HAND_RIGHT);
+		const struct player *pl = g_Vars.currentplayer;
+
+		st->assistlock = movedata->canautoaim
+			&& (bmoveIsAutoAimXEnabledForCurrentWeapon() || bmoveIsAutoAimYEnabledForCurrentWeapon())
+			&& pl->autoxaimprop && pl->autoyaimprop
+			&& weaponHasAimFlag(weaponnum, INVAIMFLAG_AUTOAIM);
+	}
 
 	if (st->adsheld) {
 		// keep looking around normally instead of the game's aim mode, where
@@ -1135,6 +1205,8 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		weightyAimRegisterCfg(prefix, &g_WeightyAimCfg[j]);
 
 		configRegisterInt(strFmt("WeightyAim.Player%d.LastCustom", i), &g_WeightyAimLastCustom[j], 0, WEIGHTYAIM_NUM_CUSTOM - 1);
+		g_WeightyAimAssist[j] = WEIGHTYAIM_ASSIST_DEFAULT;
+		configRegisterInt(strFmt("WeightyAim.Player%d.AimAssist", i), &g_WeightyAimAssist[j], 0, WEIGHTYAIM_NUM_ASSISTS - 1);
 
 		for (s32 c = 0; c < WEIGHTYAIM_NUM_CUSTOM; c++) {
 			snprintf(prefix, sizeof(prefix), "WeightyAim.Player%d.Custom%d", i, c + 1);
