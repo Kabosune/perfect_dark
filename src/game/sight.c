@@ -1641,7 +1641,8 @@ Gfx *sightDraw(Gfx *gdl, bool sighton, s32 sight)
 		sight = SIGHT_NONE;
 	}
 
-	// [weightyaim] "Only When Aiming" crosshair: hide it while hip-firing
+	// [weightyaim] hide the crosshair while hip-firing with "Only When Aiming",
+	// and whenever the gun is raised to your eye (scoped guns keep their scope)
 	if (weightyAimHideCrosshair() && sight != SIGHT_ZOOM) {
 		sight = SIGHT_NONE;
 	}
@@ -1679,8 +1680,18 @@ Gfx *sightDraw(Gfx *gdl, bool sighton, s32 sight)
 	}
 
 	if (sight != SIGHT_NONE && optionsGetSightOnScreen(g_Vars.currentplayerstats->mpindex)) {
-		if ((optionsGetAlwaysShowTarget(g_Vars.currentplayerstats->mpindex) && !sighton)
-				|| (sighton && sightHasTargetWhileAiming(sight))) {
+		bool showtarget = (optionsGetAlwaysShowTarget(g_Vars.currentplayerstats->mpindex) && !sighton)
+				|| (sighton && sightHasTargetWhileAiming(sight));
+
+#ifndef PLATFORM_N64
+		// [weightyaim] "Always" crosshair: draw it whatever Always Show Target
+		// and the sight flags (such as the short hide after taking damage) say
+		if (weightyAimForceCrosshair()) {
+			showtarget = true;
+		}
+#endif
+
+		if (showtarget) {
 			gdl = sightDrawTarget(gdl, crossx, crossy);
 		}
 	}

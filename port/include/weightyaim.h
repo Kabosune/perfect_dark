@@ -49,6 +49,7 @@ struct weightyaimcfg {
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*
 	s32 laser;           // RE4-style laser sight on every gun: glowing beam to a bright dot
+	s32 laserpersist;    // keep the laser dot on screen while firing (it no longer blinks out after each shot)
 
 	// aim down sights (holding the aim button)
 	s32 ads;             // 1 = raise the gun to your eye, 0 = the game's own aim mode
@@ -57,6 +58,9 @@ struct weightyaimcfg {
 	f32 adssway;         // share of the sway kept while aiming (0..1)
 	f32 adszone;         // share of the free-aim zone kept while aiming (0..1)
 	f32 adsheight;       // fine-tune how high the gun sits when aimed (screen units, + = higher)
+	s32 adsmove;         // 1 = keep walking (slower) while aiming, 0 = stand still like the original game
+	f32 adsmovespeed;    // walking speed while aiming, share of normal (0..1)
+	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
 };
 
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
@@ -84,7 +88,8 @@ struct weightyaimstickcfg {
 	f32 bezier[4];       // the custom curve being used/edited: x1, y1, x2, y2 (0..1)
 	f32 bezierprofile[3][4]; // saved points for Custom 1-3
 	s32 lastcustomcurve; // which custom curve the curve sliders edit when a built-in curve is selected
-	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate)
+	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate); the "sensitivity"
+	f32 verticalsens;    // up/down look speed as a share of the left/right speed (1 = same)
 
 	// turn boost: extra turn speed when the stick is held near full deflection
 	s32 boostmode;       // WEIGHTYAIM_BOOST_*
@@ -145,6 +150,12 @@ extern s32 g_WeightyAimDebugPattern;   // replace look input with a scripted tes
 
 extern const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS];
 
+/*
+ * Called once after pd.ini is loaded: the built-in presets can't be edited
+ * (edits move you to a custom profile), so re-apply them to pick up retunes.
+ */
+void weightyAimInit(void);
+
 void weightyAimResetDefaults(s32 cfgindex);
 void weightyAimApplyPreset(s32 cfgindex, s32 preset);
 void weightyAimResetStickDefaults(s32 cfgindex);
@@ -179,6 +190,17 @@ struct movedata;
 bool weightyAimPrepareMove(struct movedata *movedata);
 
 /*
+ * Hook 1d (bondmove.c, PC control style input): true if holding aim should
+ * aim down sights on the move instead of the original stand-still-and-lean.
+ */
+bool weightyAimAdsMoveWanted(void);
+
+/*
+ * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.
+ */
+void weightyAimApplyMoveSpeed(void);
+
+/*
  * Hook 1b (bondmove.c, zoom): the field of view to zoom to this frame.
  */
 f32 weightyAimAdjustZoomFov(f32 zoomfov);
@@ -208,9 +230,13 @@ void weightyAimGetCrosshair(f32 *x, f32 *y);
 
 /*
  * Hook 3 (sight.c): true when the crosshair should be hidden right now
- * (crosshair set to "only when aiming" and the player is hip-firing).
+ * (crosshair set to "only when aiming" and the player is hip-firing, or the
+ * gun is raised to your eye, where its own sights take over).
+ * weightyAimForceCrosshair() is true when the "Always" crosshair should be
+ * drawn whatever the game's own sight flags and Always Show Target say.
  */
 bool weightyAimHideCrosshair(void);
+bool weightyAimForceCrosshair(void);
 
 /*
  * Hook 4 (bondgun.c, per hand each frame): true if Weighty Aim wants a laser

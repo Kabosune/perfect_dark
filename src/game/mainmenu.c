@@ -3090,6 +3090,22 @@ struct menudialogdef g_CiDisplayPlayer2MenuDialog = {
 	NULL,
 };
 
+#ifndef PLATFORM_N64
+// [weightyaim] shortcut from the in-game Control Options to Weighty Aim
+extern void optionsOpenWeightyAimMenu(s32 player);
+
+static MenuItemHandlerResult menuhandlerOpenWeightyAim(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		u32 mpchrnum = (g_Vars.coopplayernum >= 0 || g_Vars.antiplayernum >= 0)
+			? g_Vars.currentplayerstats->mpindex : item->param3;
+		optionsOpenWeightyAimMenu(mpchrnum & 3);
+	}
+
+	return 0;
+}
+#endif
+
 struct menuitem g_MissionControlOptionsMenuItems[] = {
 	{
 		MENUITEMTYPE_SELECTABLE,
@@ -3139,6 +3155,16 @@ struct menuitem g_MissionControlOptionsMenuItems[] = {
 		0x00000004,
 		menuhandlerAimControl,
 	},
+#ifndef PLATFORM_N64
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0x00000004,
+		menuhandlerOpenWeightyAim,
+	},
+#endif
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,
@@ -3217,6 +3243,16 @@ struct menuitem g_CiControlOptionsMenuItems2[] = {
 		0x00000004,
 		menuhandlerAimControl,
 	},
+#ifndef PLATFORM_N64
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0x00000004,
+		menuhandlerOpenWeightyAim,
+	},
+#endif
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,
@@ -3295,6 +3331,16 @@ struct menuitem g_CiControlOptionsMenuItems[] = {
 		0x00000004,
 		menuhandlerAimControl,
 	},
+#ifndef PLATFORM_N64
+	{
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0x00000004,
+		menuhandlerOpenWeightyAim,
+	},
+#endif
 	{
 		MENUITEMTYPE_SEPARATOR,
 		0,

@@ -24,6 +24,27 @@ s32 optionsGetExtMenuPlayer(void)
 	return g_ExtMenuPlayer;
 }
 
+// [weightyaim] the Weighty Aim page (defined in weightyaimmenu.c)
+extern struct menudialogdef g_WeightyAimMenuDialog;
+
+// [weightyaim] jump straight to a player's Weighty Aim page, used by the
+// shortcuts on the mouse, controller, stick and in-game control options pages
+void optionsOpenWeightyAimMenu(s32 player)
+{
+	g_ExtMenuPlayer = player & 3;
+	((char *)g_WeightyAimMenuDialog.title)[7] = g_ExtMenuPlayer + '1';
+	menuPushDialog(&g_WeightyAimMenuDialog);
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimShortcut(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		optionsOpenWeightyAimMenu(g_ExtMenuPlayer);
+	}
+
+	return 0;
+}
+
 static s32 g_BindIndex = 0;
 static u32 g_BindContKey = 0;
 
@@ -365,6 +386,15 @@ struct menuitem g_ExtendedMouseMenuItems[] = {
 		menuhandlerRadialMenuSpeed,
 	},
 	{
+		// [weightyaim] shortcut to this player's Weighty Aim settings
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0,
+		menuhandlerWeightyAimShortcut,
+	},
+	{
 		MENUITEMTYPE_SEPARATOR,
 		0,
 		0,
@@ -467,6 +497,15 @@ struct menuitem g_ExtendedStickMenuItems[] = {
 		(uintptr_t)"RStick Deadzone Y",
 		32,
 		menuhandlerStickDeadzone,
+	},
+	{
+		// [weightyaim] shortcut to this player's Weighty Aim settings
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0,
+		menuhandlerWeightyAimShortcut,
 	},
 	{
 		MENUITEMTYPE_SEPARATOR,
@@ -662,6 +701,15 @@ struct menuitem g_ExtendedControllerMenuItems[] = {
 		(uintptr_t)"Vibration",
 		10,
 		menuhandlerVibration,
+	},
+	{
+		// [weightyaim] shortcut to this player's Weighty Aim settings
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Weighty Aim Settings...\n",
+		0,
+		menuhandlerWeightyAimShortcut,
 	},
 	{
 		MENUITEMTYPE_SEPARATOR,
@@ -1943,7 +1991,6 @@ static MenuItemHandlerResult menuhandlerOpenGameMenu(s32 operation, struct menui
 }
 
 // [weightyaim] opens the Weighty Aim page (defined in weightyaimmenu.c) after picking a player
-extern struct menudialogdef g_WeightyAimMenuDialog;
 
 static MenuItemHandlerResult menuhandlerOpenWeightyAimMenu(s32 operation, struct menuitem *item, union handlerdata *data)
 {

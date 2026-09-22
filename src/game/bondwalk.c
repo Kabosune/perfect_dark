@@ -27,6 +27,9 @@
 #include "data.h"
 #include "types.h"
 #ifndef PLATFORM_N64
+#include "weightyaim.h" // [weightyaim]
+#endif
+#ifndef PLATFORM_N64
 extern f32 fabsf(f32);
 #endif
 
@@ -1552,6 +1555,10 @@ void bwalk0f0c69b8(void)
 		bwalkCalculateNewPositionWithPush(&spcc, 0.0f, true, 0.0f, CDTYPE_ALL);
 	} else {
 		bwalkApplyCrouchSpeed();
+#ifndef PLATFORM_N64
+		// [weightyaim] walk slower while aiming down sights
+		weightyAimApplyMoveSpeed();
+#endif
 		bwalkUpdateCrouchOffset();
 
 		bmove0f0cba88(&spc8, &spc4,

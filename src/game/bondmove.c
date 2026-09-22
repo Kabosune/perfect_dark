@@ -1270,8 +1270,16 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 					invbuttons = A_BUTTON;
 				}
 
+#ifndef PLATFORM_N64
+				// [weightyaim] aim down sights on the move, instead of the original
+				// stand still and lean with the move stick
+				const bool adsmove = controlmode == CONTROLMODE_PC && weightyAimAdsMoveWanted();
+#else
+				const bool adsmove = false;
+#endif
+
 				if (controlmode == CONTROLMODE_PC) {
-					if (!g_Vars.currentplayer->insightaimmode) {
+					if (!g_Vars.currentplayer->insightaimmode || adsmove) {
 						movedata.analogstrafe = c2stickx;
 						movedata.analogwalk = c2sticky;
 						movedata.unk14 = (c2stickx || c2sticky);
@@ -1329,10 +1337,16 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 
 					if (controlmode == CONTROLMODE_12 || controlmode == CONTROLMODE_14 || controlmode == CONTROLMODE_PC) {
 						// Handle side stepping
-						if (g_Vars.currentplayer->insightaimmode == false) {
+						if (g_Vars.currentplayer->insightaimmode == false || adsmove) {
 							if (allowc1buttons) {
 								movedata.digitalstepleft = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & slmask);
 								movedata.digitalstepright = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & srmask);
+
+								if (adsmove) {
+									// [weightyaim] the aiming samples count too
+									movedata.digitalstepleft += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & slmask);
+									movedata.digitalstepright += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & srmask);
+								}
 							}
 						} else {
 							// This doesn't appear to be r-leaning.
@@ -1346,9 +1360,9 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 							}
 						}
 
-						movedata.digitalstepforward = !g_Vars.currentplayer->insightaimmode && (c1buttons & sumask);
-						movedata.digitalstepback = !g_Vars.currentplayer->insightaimmode && (c1buttons & sdmask);
-						movedata.canlookahead = (controlmode == CONTROLMODE_PC) && !g_Vars.currentplayer->insightaimmode && (c2stickx || c2sticky);
+						movedata.digitalstepforward = (!g_Vars.currentplayer->insightaimmode || adsmove) && (c1buttons & sumask);
+						movedata.digitalstepback = (!g_Vars.currentplayer->insightaimmode || adsmove) && (c1buttons & sdmask);
+						movedata.canlookahead = (controlmode == CONTROLMODE_PC) && (!g_Vars.currentplayer->insightaimmode || adsmove) && (c2stickx || c2sticky);
 						movedata.cannaturalpitch = !g_Vars.currentplayer->insightaimmode;
 						movedata.speedvertadown = 0;
 						movedata.speedvertaup = 0;
@@ -1800,10 +1814,10 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 #endif
 						}
 					} else {
-						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && (c1buttons & slmask);
-						movedata.rleanright = g_Vars.currentplayer->insightaimmode && (c1buttons & srmask);
+						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !adsmove && (c1buttons & slmask);
+						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !adsmove && (c1buttons & srmask);
 #ifndef PLATFORM_N64
-						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode) {
+						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode && !adsmove) {
 							movedata.analoglean = c2stickx / 127.f;
 						}
 #endif
