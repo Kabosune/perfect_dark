@@ -19,7 +19,7 @@
 #include "types.h"
 
 #define WEIGHTYAIM_PRESET_WEIGHTY 0 // free-aim with a crosshair (default)
-#define WEIGHTYAIM_PRESET_BODYCAM 1 // heavier gun, more camera sway, crosshair only when aiming
+#define WEIGHTYAIM_PRESET_IMMERSIVE 1 // heavier, more flowing gun and camera, crosshair only when aiming
 #define WEIGHTYAIM_PRESET_CLASSIC 2 // the game's original crosshair sway (mod off)
 #define WEIGHTYAIM_PRESET_CUSTOM  3 // any slider changed by hand
 #define WEIGHTYAIM_NUM_PRESETS    4
@@ -39,6 +39,7 @@ struct weightyaimcfg {
 	f32 gunresponse;     // weapon inertia spring frequency in Hz (lower = heavier gun)
 	f32 gundamping;      // spring damping ratio (1 = no overshoot, lower = more overshoot)
 	f32 turndrag;        // how much the gun lags behind when the camera turns (0..1)
+	f32 edgesmoothing;   // seconds for the camera to ease in when the gun pushes past the edge (0 = rigid)
 	f32 camerasway;      // idle breathing sway of the camera, degrees
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*

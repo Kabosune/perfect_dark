@@ -68,6 +68,7 @@ struct weightyaimstate {
 	f32 target[2];   // where the gun wants to point (yaw, pitch), degrees from camera centre
 	f32 display[2];  // where the gun actually points after inertia
 	f32 vel[2];      // spring velocity, degrees/second
+	f32 over[2];     // how far the gun is pushed past the edge of the zone, degrees (drains into camera turn)
 	f32 idletime;    // seconds since the last look input
 	f32 swayphase[3];// camera sway oscillator phases (breath, drift, footsteps)
 	f32 sway[2];     // camera sway offset applied last frame, degrees
@@ -83,44 +84,46 @@ static f32 g_WeightyAimPatternTime = 0.f;
 
 const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 	"Weighty",
-	"Bodycam",
+	"Immersive",
 	"Classic",
 	"Custom",
 };
 
-// Weighty: free-aim with a crosshair, subtle camera lead, no sway
+// Weighty: free-aim with a crosshair, a gun with some heft, a hint of sway
 static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.preset = WEIGHTYAIM_PRESET_WEIGHTY,
-	.deadzonex = 7.f,
-	.deadzoney = 4.5f,
-	.stickaimspeed = 0.4f,
-	.mouseaimspeed = 1.f,
-	.cameralead = 0.6f,
-	.recenterspeed = 0.8f,
-	.recenterdelay = 0.35f,
-	.gunresponse = 7.f,
-	.gundamping = 0.65f,
-	.turndrag = 0.5f,
-	.camerasway = 0.f,
-	.walksway = 0.f,
+	.deadzonex = 8.5f,
+	.deadzoney = 5.f,
+	.stickaimspeed = 0.38f,
+	.mouseaimspeed = 0.95f,
+	.cameralead = 0.9f,
+	.recenterspeed = 1.f,
+	.recenterdelay = 0.25f,
+	.gunresponse = 5.5f,
+	.gundamping = 0.55f,
+	.turndrag = 0.65f,
+	.edgesmoothing = 0.12f,
+	.camerasway = 0.12f,
+	.walksway = 0.35f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
 };
 
-// Bodycam: wider zone, heavier gun, the camera follows more and never sits still
-static const struct weightyaimcfg g_WeightyAimPresetBodycam = {
-	.preset = WEIGHTYAIM_PRESET_BODYCAM,
-	.deadzonex = 10.f,
-	.deadzoney = 6.f,
-	.stickaimspeed = 0.35f,
-	.mouseaimspeed = 0.9f,
-	.cameralead = 1.2f,
-	.recenterspeed = 1.2f,
-	.recenterdelay = 0.2f,
-	.gunresponse = 4.5f,
-	.gundamping = 0.5f,
-	.turndrag = 0.8f,
-	.camerasway = 0.35f,
-	.walksway = 0.9f,
+// Immersive: wide zone, heavy flowing gun, a camera that follows and never sits still
+static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
+	.preset = WEIGHTYAIM_PRESET_IMMERSIVE,
+	.deadzonex = 11.f,
+	.deadzoney = 6.5f,
+	.stickaimspeed = 0.33f,
+	.mouseaimspeed = 0.85f,
+	.cameralead = 1.4f,
+	.recenterspeed = 1.3f,
+	.recenterdelay = 0.15f,
+	.gunresponse = 3.6f,
+	.gundamping = 0.45f,
+	.turndrag = 0.9f,
+	.edgesmoothing = 0.2f,
+	.camerasway = 0.45f,
+	.walksway = 1.1f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_AIMONLY,
 };
 
@@ -132,8 +135,8 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 	case WEIGHTYAIM_PRESET_WEIGHTY:
 		*cfg = g_WeightyAimPresetWeighty;
 		break;
-	case WEIGHTYAIM_PRESET_BODYCAM:
-		*cfg = g_WeightyAimPresetBodycam;
+	case WEIGHTYAIM_PRESET_IMMERSIVE:
+		*cfg = g_WeightyAimPresetImmersive;
 		break;
 	case WEIGHTYAIM_PRESET_CLASSIC:
 	case WEIGHTYAIM_PRESET_CUSTOM:
@@ -321,7 +324,7 @@ static void weightyAimStepSpring(struct weightyaimstate *st, const struct weight
 
 	for (s32 s = 0; s < steps; s++) {
 		for (s32 i = 0; i < 2; i++) {
-			const f32 acc = k * (st->target[i] - st->display[i]) - c * st->vel[i];
+			const f32 acc = k * (st->target[i] + st->over[i] - st->display[i]) - c * st->vel[i];
 			st->vel[i] += acc * h;
 			st->display[i] += st->vel[i] * h;
 		}
@@ -333,6 +336,7 @@ static void weightyAimResetState(struct weightyaimstate *st)
 	st->target[0] = st->target[1] = 0.f;
 	st->display[0] = st->display[1] = 0.f;
 	st->vel[0] = st->vel[1] = 0.f;
+	st->over[0] = st->over[1] = 0.f;
 	st->idletime = 0.f;
 	st->sway[0] = st->sway[1] = 0.f;
 }
@@ -415,7 +419,8 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			st->target[0] += move[0];
 			st->target[1] += move[1];
 
-			// 2. Anything that pushes past the edge of the zone turns the camera instead
+			// 2. Anything that pushes past the edge of the zone goes into the overflow,
+			//    converted back to full turning speed, and the camera eases into it below
 			ellipse = (st->target[0] / zx) * (st->target[0] / zx) + (st->target[1] / zy) * (st->target[1] / zy);
 
 			if (ellipse > 1.f) {
@@ -425,8 +430,8 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 				st->target[0] *= scale;
 				st->target[1] *= scale;
-				camdeg[0] = overx / ratio;
-				camdeg[1] = overy / ratio;
+				st->over[0] += overx / ratio;
+				st->over[1] += overy / ratio;
 			}
 		}
 
@@ -439,9 +444,51 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			st->target[1] *= scale;
 		}
 
-		// 3. Turning from pushing past the edge: the gun lags behind for a moment
-		st->display[0] -= camdeg[0] * clampf(cfg->turndrag, 0.f, 1.f);
-		st->display[1] -= camdeg[1] * clampf(cfg->turndrag, 0.f, 1.f);
+		// 3. Edge smoothing: the camera turns toward the overflow over a short time
+		//    instead of instantly, so hitting the edge eases in and out. The more
+		//    the gun is pushed past the edge, the harder the camera follows, so
+		//    fast turns still keep up. The gun holds its aim in the world while
+		//    the camera turns, and lags a little extra (turn drag).
+		{
+			const f32 drag = clampf(cfg->turndrag, 0.f, 1.f);
+			const f32 softcap = 0.25f * (zx + zy);
+			const f32 overlen = bc_sqrtf(st->over[0] * st->over[0] + st->over[1] * st->over[1]);
+			f32 k = 1.f;
+
+			if (cfg->edgesmoothing > 0.001f && overlen > 0.f) {
+				const f32 pressure = overlen / softcap;
+				const f32 rate = (1.f / cfg->edgesmoothing) * (1.f + pressure * pressure);
+				k = 1.f - bc_expf(-rate * dtsec);
+			}
+
+			for (s32 i = 0; i < 2; i++) {
+				const f32 c = st->over[i] * k;
+				st->over[i] -= c;
+				camdeg[i] += c;
+				st->display[i] -= c * (1.f + drag);
+			}
+
+			// finish off tiny leftovers so catch-up and lead can take over again
+			if (bc_fabsf(st->over[0]) + bc_fabsf(st->over[1]) < 0.01f) {
+				for (s32 i = 0; i < 2; i++) {
+					camdeg[i] += st->over[i];
+					st->display[i] -= st->over[i] * (1.f + drag);
+					st->over[i] = 0.f;
+				}
+			}
+
+			// never let the gun run away past the edge
+			if (overlen > softcap * 3.f) {
+				const f32 keep = softcap * 3.f / overlen;
+
+				for (s32 i = 0; i < 2; i++) {
+					const f32 excess = st->over[i] * (1.f - keep);
+					st->over[i] -= excess;
+					camdeg[i] += excess;
+					st->display[i] -= excess * (1.f + drag);
+				}
+			}
+		}
 
 		// 4. The camera drifts toward where the gun points, so it never sits dead still.
 		//    While aiming it leads gently (stronger near the edge of the zone), and
@@ -458,7 +505,10 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 						+ (st->target[1] / zy) * (st->target[1] / zy), 0.f, 1.f));
 			f32 rate = 0.f;
 
-			if (st->idletime > cfg->recenterdelay) {
+			if (st->over[0] != 0.f || st->over[1] != 0.f) {
+				// already turning from the edge; leading as well would slow that turn down
+				rate = 0.f;
+			} else if (st->idletime > cfg->recenterdelay) {
 				rate = cfg->recenterspeed;
 			} else if (reqlen > 0.0001f || st->idletime > 0.f) {
 				rate = cfg->cameralead * edgeness;
@@ -585,6 +635,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.GunResponse", i), &g_WeightyAimCfg[j].gunresponse, 0.5f, 40.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.GunDamping", i), &g_WeightyAimCfg[j].gundamping, 0.05f, 3.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.TurnDrag", i), &g_WeightyAimCfg[j].turndrag, 0.f, 1.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.EdgeSmoothing", i), &g_WeightyAimCfg[j].edgesmoothing, 0.f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.CameraSway", i), &g_WeightyAimCfg[j].camerasway, 0.f, 5.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.WalkSway", i), &g_WeightyAimCfg[j].walksway, 0.f, 5.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.Crosshair", i), &g_WeightyAimCfg[j].crosshair, 0, 1);

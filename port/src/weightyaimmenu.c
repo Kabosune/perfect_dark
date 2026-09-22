@@ -40,6 +40,7 @@ static const struct weightyaimslider g_WeightyAimSliders[] = {
 	{ CFGFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL },
 	{ CFGFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL },
 	{ CFGFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL },
+	{ CFGFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off" },
 	{ CFGFIELD(camerasway),    0.05f, 0.f,  "%.2f deg", "Off" },
 	{ CFGFIELD(walksway),      0.1f,  0.f,  "%.1f deg", "Off" },
 };
@@ -333,6 +334,7 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Gun Response", 40),            // 1 - 20 Hz
 	WEIGHTYAIM_SLIDER("Gun Damping", 30),             // 0.1 - 1.5
 	WEIGHTYAIM_SLIDER("Turn Drag", 20),               // 0 - 1
+	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),          // 0 - 0.5 s
 	WEIGHTYAIM_SLIDER("Camera Sway", 30),             // 0 - 1.5 deg
 	WEIGHTYAIM_SLIDER("Walk Sway", 30),               // 0 - 3 deg
 	{
