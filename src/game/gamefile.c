@@ -640,6 +640,10 @@ void gamefileUnlockEverything(void)
 	gamefileSetFlag(GAMEFILEFLAG_CI_CAMSPY_DONE);
 	gamefileSetFlag(GAMEFILEFLAG_CI_ECMMINE_DONE);
 	gamefileSetFlag(GAMEFILEFLAG_CI_UPLINK_DONE);
+
+	// [weightyaim] fix: mark the profile as changed so it is actually saved
+	// when leaving the options menu (otherwise the unlocks are lost on quit)
+	g_Vars.modifiedfiles |= MODFILE_GAME;
 }
 
 #endif
