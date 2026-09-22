@@ -134,6 +134,9 @@ s32 inputRumbleSupported(s32 idx);
 // returns 1 if specified player has a live controller assigned
 s32 inputControllerConnected(s32 idx);
 
+// [weightyaim] gyro (rad/s) and accelerometer (m/s^2); returns 0 without a gyro
+s32 inputControllerGetMotion(s32 idx, f32 *gyro, f32 *accel);
+
 // returns bitmask of players with assigned controllers
 s32 inputControllerMask(void);
 

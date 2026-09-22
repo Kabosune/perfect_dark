@@ -1213,9 +1213,9 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 						const f32 flicker = 0.9f + 0.1f * sinf(g_Vars.lvframenum * 1.7f);
 
 						numdotpasses = 3;
-						dotscale[0] = 4.0f; dotcol[0] = 0xff101000 | (u32)(0x40 * flicker);
-						dotscale[1] = 1.7f; dotcol[1] = 0xff202000 | (u32)(0xa0 * flicker);
-						dotscale[2] = 0.7f; dotcol[2] = 0xffe0e000 | 0xff;
+						dotscale[0] = 10.0f; dotcol[0] = 0xff101000 | (u32)(0x70 * flicker);
+						dotscale[1] = 4.0f;  dotcol[1] = 0xff282800 | (u32)(0xd8 * flicker);
+						dotscale[2] = 1.8f;  dotcol[2] = 0xffe8e800 | 0xff;
 					}
 #endif
 
@@ -1396,12 +1396,12 @@ Gfx *lasersightRenderBeam(Gfx *gdl)
 #ifndef PLATFORM_N64
 			if (weightyAimLaserEnhanced()) {
 				const f32 flicker = 0.9f + 0.07f * sinf(g_Vars.lvframenum * 2.3f) + 0.03f * sinf(g_Vars.lvframenum * 5.1f);
-				const u32 a0 = (u32)(0x30 * flicker), a1 = (u32)(0x80 * flicker), a2 = (u32)(0xf0 * flicker);
+				const u32 a0 = (u32)(0x58 * flicker), a1 = (u32)(0xb0 * flicker), a2 = (u32)(0xff * flicker);
 
 				numpasses = 3;
-				passwidth[0] = 20.0f; passnear[0] = 0xff101000 | a0;       passfar[0] = 0xff101000 | (a0 / 2);
-				passwidth[1] = 6.0f;  passnear[1] = 0xff282800 | a1;       passfar[1] = 0xff282800 | (a1 / 2);
-				passwidth[2] = 1.6f;  passnear[2] = 0xffd0d000 | a2;       passfar[2] = 0xffa0a000 | (a2 * 2 / 3);
+				passwidth[0] = 55.0f; passnear[0] = 0xff101000 | a0;       passfar[0] = 0xff101000 | (a0 * 2 / 3);
+				passwidth[1] = 16.0f; passnear[1] = 0xff282800 | a1;       passfar[1] = 0xff282800 | (a1 * 2 / 3);
+				passwidth[2] = 5.0f;  passnear[2] = 0xffd0d000 | a2;       passfar[2] = 0xffb0b000 | (a2 * 3 / 4);
 			}
 #endif
 

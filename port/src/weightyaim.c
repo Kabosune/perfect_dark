@@ -15,6 +15,8 @@
 #include "game/game_0b0fd0.h"
 #include "game/bondgun.h"
 #include "game/bondmove.h"
+#include "game/options.h"
+#include "input.h"
 #include "config.h"
 #include "system.h"
 #include "utils.h"
@@ -49,13 +51,58 @@
 
 struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
-s32 g_WeightyAimAssist[4];
+f32 g_WeightyAimAssistStrength[4];
+struct weightyaimgyrocfg g_WeightyAimGyroCfg[4];
 
-const char *g_WeightyAimAssistNames[WEIGHTYAIM_NUM_ASSISTS] = {
-	"Game Default",
-	"Reduced",
+const char *g_WeightyAimGyroModeNames[WEIGHTYAIM_NUM_GYROMODES] = {
 	"Off",
+	"Always On",
+	"While Aiming",
 };
+
+const char *g_WeightyAimGyroSpaceNames[WEIGHTYAIM_NUM_GYROSPACES] = {
+	"Player",
+	"Local",
+};
+
+static const struct weightyaimgyrocfg g_WeightyAimGyroDefaults = {
+	.mode = WEIGHTYAIM_GYRO_OFF,
+	.sensitivity = 2.5f,
+	.vertical = 0.9f,
+	.space = WEIGHTYAIM_GYROSPACE_PLAYER,
+	.inverty = 0,
+	.acceleration = 1.f,
+	.accelthreshold = 75.f,
+	.tightening = 0.f,
+	.smoothing = 4.f,
+	.autocalibrate = 1,
+	.pausewithstick = 0,
+};
+
+void weightyAimResetGyroDefaults(s32 cfgindex)
+{
+	const s32 mode = g_WeightyAimGyroCfg[cfgindex & 3].mode;
+	g_WeightyAimGyroCfg[cfgindex & 3] = g_WeightyAimGyroDefaults;
+	g_WeightyAimGyroCfg[cfgindex & 3].mode = mode; // resetting the tuning shouldn't switch gyro off
+}
+
+/*
+ * Gyro state, per player
+ */
+struct weightyaimgyrostate {
+	bool available;      // the controller reported a gyro last time we asked
+	f32 bias[3];         // calibration offset, deg/s
+	bool calibrated;
+	f32 calibtime;       // > 0 while calibrating
+	f32 calibsum[3];
+	s32 calibcount;
+	f32 stilltime;       // how long the controller has been held still (auto-calibration)
+	f32 grav[3];         // smoothed "up" direction from the accelerometer
+	f32 smooth[2];       // smoothed small movements
+	u64 lastmenutick;
+};
+
+static struct weightyaimgyrostate g_WeightyAimGyroState[MAX_PLAYERS];
 s32 g_WeightyAimLastCustom[4];
 struct weightyaimstickcfg g_WeightyAimStickCfg[4];
 
@@ -603,6 +650,8 @@ static inline f32 weightyAimAdsAmount(const struct weightyaimstate *st)
 	return b * b * (3.f - 2.f * b);
 }
 
+static void weightyAimGyroDegrees(s32 cfgindex, bool aiming, bool stickmoving, f32 dtsec, f32 *out);
+
 static void weightyAimResetState(struct weightyaimstate *st)
 {
 	st->target[0] = st->target[1] = 0.f;
@@ -624,6 +673,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	const f32 dtsec = dt60 / 60.f;
 	const f32 fovscale = viGetFovY() / PLAYER_DEFAULT_FOV;
 	const bool isfirstplayer = (g_Vars.currentplayernum == 0);
+	f32 gyrodeg[2] = { 0.f, 0.f };
 	f32 stickrate[2], stickdeg[2], mousedeg[2], reqdeg[2], camdeg[2] = { 0.f, 0.f };
 	bool active;
 
@@ -648,6 +698,22 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	mousedeg[0] = *freelookdx * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
 	stickdeg[1] = -stickrate[1] * fovscale * DEG_PER_SPEED_TICK * dt60;
 	mousedeg[1] = -*freelookdy * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
+	// Gyro counts like the mouse: it goes through the free-aim zone too
+	{
+		const s32 cfgindex = g_Vars.currentplayerstats->mpindex & 3;
+		const bool aiming = g_Vars.currentplayer->insightaimmode != 0;
+		const bool stickmoving = bc_fabsf(stickrate[0]) + bc_fabsf(stickrate[1]) > 0.02f;
+
+		weightyAimGyroDegrees(cfgindex, aiming, stickmoving, dtsec, gyrodeg);
+
+		if (!canlook) {
+			gyrodeg[0] = gyrodeg[1] = 0.f;
+		}
+
+		mousedeg[0] += gyrodeg[0];
+		mousedeg[1] += gyrodeg[1];
+	}
+
 	reqdeg[0] = stickdeg[0] + mousedeg[0];
 	reqdeg[1] = stickdeg[1] + mousedeg[1];
 
@@ -681,6 +747,12 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			*analogpitch = 0;
 			*freelookdx += stickrate[0] / mlookscale;
 			*freelookdy += stickrate[1] / mlookscale;
+		}
+
+		// gyro works with the Classic preset too
+		if (canlook && (gyrodeg[0] != 0.f || gyrodeg[1] != 0.f)) {
+			*freelookdx += gyrodeg[0] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);
+			*freelookdy -= gyrodeg[1] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);
 		}
 	} else {
 		// While aiming down sights the zone shrinks, the camera takes over more of
@@ -965,19 +1037,221 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
 
 bool weightyAimAssistAllowed(void)
 {
-	return g_WeightyAimAssist[g_Vars.currentplayerstats->mpindex & 3] != WEIGHTYAIM_ASSIST_OFF;
+	return g_WeightyAimAssistStrength[g_Vars.currentplayerstats->mpindex & 3] > 0.001f;
 }
 
 f32 weightyAimAssistScale(void)
 {
-	switch (g_WeightyAimAssist[g_Vars.currentplayerstats->mpindex & 3]) {
-	case WEIGHTYAIM_ASSIST_REDUCED:
-		return 0.5f;
-	case WEIGHTYAIM_ASSIST_OFF:
-		return 0.f;
-	default:
-		return 1.f;
+	// capped at 1: can weaken the game's aim assist, never strengthen it
+	return clampf(g_WeightyAimAssistStrength[g_Vars.currentplayerstats->mpindex & 3], 0.f, 1.f);
+}
+
+/*
+ * Gyro aiming
+ *
+ * Follows JibbSmart's GyroWiki (and what Steam Input does):
+ * - sensitivity 1 = 1 real degree turns you 1 in-game degree
+ * - "player space": turning the controller flat or leaning it left/right both
+ *   turn you, whichever way you naturally hold it; up/down is always pitch
+ * - optional acceleration, tightening and soft tiered smoothing, all applied
+ *   only where the GyroWiki says they belong (smoothing only on small moves)
+ * - calibration on demand, plus automatic calibration while held still
+ */
+
+#define GYRO_CALIB_SECONDS 1.5f
+#define GYRO_STILL_DEG     2.0f   // deg/s: slower than this counts as "held still"
+#define GYRO_YAW_RELAX     1.41f  // player space: ~45 degrees of freedom
+
+static inline struct weightyaimgyrostate *weightyAimGyroState(s32 cfgindex)
+{
+	return &g_WeightyAimGyroState[cfgindex & 3];
+}
+
+void weightyAimGyroStartCalibration(s32 cfgindex)
+{
+	struct weightyaimgyrostate *gs = weightyAimGyroState(cfgindex);
+
+	gs->calibtime = GYRO_CALIB_SECONDS;
+	gs->calibsum[0] = gs->calibsum[1] = gs->calibsum[2] = 0.f;
+	gs->calibcount = 0;
+}
+
+/**
+ * Read the controller and update calibration. Returns false without a gyro.
+ * rate[3] gets calibrated angular velocity in deg/s (pitch, yaw, roll).
+ */
+static bool weightyAimGyroSample(s32 cfgindex, f32 dtsec, f32 *rate)
+{
+	const struct weightyaimgyrocfg *gc = &g_WeightyAimGyroCfg[cfgindex & 3];
+	struct weightyaimgyrostate *gs = weightyAimGyroState(cfgindex);
+	const s32 pad = optionsGetContpadNum1(cfgindex & 3);
+	f32 gyro[3], accel[3], raw[3], alen;
+
+	gs->available = inputControllerGetMotion(pad, gyro, accel) != 0;
+
+	if (!gs->available) {
+		return false;
 	}
+
+	for (s32 i = 0; i < 3; i++) {
+		raw[i] = gyro[i] * (180.f / (f32)M_PI);
+	}
+
+	// smoothed gravity (points up) for player space
+	alen = bc_sqrtf(accel[0] * accel[0] + accel[1] * accel[1] + accel[2] * accel[2]);
+
+	if (alen > 0.1f) {
+		const f32 k = 1.f - bc_expf(-dtsec / 0.1f);
+
+		for (s32 i = 0; i < 3; i++) {
+			gs->grav[i] += (accel[i] / alen - gs->grav[i]) * k;
+		}
+	}
+
+	// manual calibration: average while the player holds still
+	if (gs->calibtime > 0.f) {
+		for (s32 i = 0; i < 3; i++) {
+			gs->calibsum[i] += raw[i];
+		}
+
+		gs->calibcount++;
+		gs->calibtime -= dtsec;
+
+		if (gs->calibtime <= 0.f && gs->calibcount > 0) {
+			for (s32 i = 0; i < 3; i++) {
+				gs->bias[i] = gs->calibsum[i] / gs->calibcount;
+			}
+
+			gs->calibrated = true;
+		}
+	} else if (gc->autocalibrate) {
+		// automatic: after a second of being held still, slowly settle the bias
+		const f32 dx = raw[0] - gs->bias[0], dy = raw[1] - gs->bias[1], dz = raw[2] - gs->bias[2];
+
+		if (bc_fabsf(dx) < GYRO_STILL_DEG && bc_fabsf(dy) < GYRO_STILL_DEG && bc_fabsf(dz) < GYRO_STILL_DEG) {
+			gs->stilltime += dtsec;
+		} else {
+			gs->stilltime = 0.f;
+		}
+
+		if (gs->stilltime > 1.f) {
+			const f32 k = 1.f - bc_expf(-dtsec / 1.f);
+
+			for (s32 i = 0; i < 3; i++) {
+				gs->bias[i] += (raw[i] - gs->bias[i]) * k;
+			}
+
+			gs->calibrated = true;
+		}
+	}
+
+	for (s32 i = 0; i < 3; i++) {
+		rate[i] = raw[i] - gs->bias[i];
+	}
+
+	return true;
+}
+
+/**
+ * Degrees to turn this frame from the gyro (+yaw = right, +pitch = up).
+ */
+static void weightyAimGyroDegrees(s32 cfgindex, bool aiming, bool stickmoving, f32 dtsec, f32 *out)
+{
+	const struct weightyaimgyrocfg *gc = &g_WeightyAimGyroCfg[cfgindex & 3];
+	struct weightyaimgyrostate *gs = weightyAimGyroState(cfgindex);
+	f32 rate[3], yaw, pitch, speed, sens;
+
+	out[0] = out[1] = 0.f;
+
+	if (gc->mode == WEIGHTYAIM_GYRO_OFF || !weightyAimGyroSample(cfgindex, dtsec, rate)) {
+		return;
+	}
+
+	if (gs->calibtime > 0.f
+			|| (gc->mode == WEIGHTYAIM_GYRO_AIMING && !aiming)
+			|| (gc->pausewithstick && stickmoving)) {
+		gs->smooth[0] = gs->smooth[1] = 0.f;
+		return;
+	}
+
+	// SDL: x = pitch (+ = tilt the far edge up), y = yaw (+ = turn left), z = roll
+	pitch = rate[0];
+
+	if (gc->space == WEIGHTYAIM_GYROSPACE_PLAYER && (gs->grav[0] != 0.f || gs->grav[1] != 0.f || gs->grav[2] != 0.f)) {
+		const f32 worldyaw = rate[1] * gs->grav[1] + rate[2] * gs->grav[2];
+		const f32 len = bc_sqrtf(rate[1] * rate[1] + rate[2] * rate[2]);
+		const f32 mag = bc_fabsf(worldyaw) * GYRO_YAW_RELAX;
+
+		yaw = (worldyaw < 0.f ? -1.f : 1.f) * (mag < len ? mag : len);
+	} else {
+		yaw = rate[1];
+	}
+
+	speed = bc_sqrtf(yaw * yaw + pitch * pitch);
+
+	// tightening: scale down tiny movements (hand shake) without a hard cutoff
+	if (gc->tightening > 0.f && speed < gc->tightening) {
+		const f32 k = speed / gc->tightening;
+		yaw *= k;
+		pitch *= k;
+	}
+
+	// soft tiered smoothing: only small movements are smoothed, big ones pass straight through
+	if (gc->smoothing > 0.f) {
+		const f32 half = gc->smoothing * 0.5f;
+		const f32 direct = clampf((speed - half) / half, 0.f, 1.f);
+		const f32 k = 1.f - bc_expf(-dtsec / 0.1f);
+
+		gs->smooth[0] += (yaw - gs->smooth[0]) * k;
+		gs->smooth[1] += (pitch - gs->smooth[1]) * k;
+		yaw = yaw * direct + gs->smooth[0] * (1.f - direct);
+		pitch = pitch * direct + gs->smooth[1] * (1.f - direct);
+	}
+
+	// acceleration: faster motion gets more sensitivity
+	sens = gc->sensitivity;
+
+	if (gc->acceleration > 1.f) {
+		sens *= 1.f + (gc->acceleration - 1.f) * clampf(speed / (gc->accelthreshold > 1.f ? gc->accelthreshold : 1.f), 0.f, 1.f);
+	}
+
+	out[0] = -yaw * sens * dtsec;
+	out[1] = pitch * sens * clampf(gc->vertical, 0.f, 2.f) * dtsec * (gc->inverty ? -1.f : 1.f);
+}
+
+/**
+ * Keeps calibration running while the Gyro Aim page is open (the game is
+ * paused then, so the aiming code isn't running).
+ */
+void weightyAimGyroMenuTick(s32 cfgindex)
+{
+	struct weightyaimgyrostate *gs = weightyAimGyroState(cfgindex);
+	const u64 now = sysGetMicroseconds();
+	f32 dt = gs->lastmenutick ? (now - gs->lastmenutick) / 1000000.f : 0.f;
+	f32 rate[3];
+
+	gs->lastmenutick = now;
+
+	if (dt <= 0.f || dt > 0.25f) {
+		dt = 1.f / 60.f;
+	}
+
+	weightyAimGyroSample(cfgindex, dt, rate);
+}
+
+const char *weightyAimGyroStatusText(s32 cfgindex)
+{
+	const struct weightyaimgyrostate *gs = weightyAimGyroState(cfgindex);
+
+	if (!gs->available) {
+		return "No gyro found on this controller\n";
+	}
+
+	if (gs->calibtime > 0.f) {
+		return "Calibrating... keep the controller still\n";
+	}
+
+	return gs->calibrated ? "Gyro ready (calibrated)\n" : "Gyro found - calibrate for best results\n";
 }
 
 /*
@@ -1243,8 +1517,21 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		weightyAimRegisterCfg(prefix, &g_WeightyAimCfg[j]);
 
 		configRegisterInt(strFmt("WeightyAim.Player%d.LastCustom", i), &g_WeightyAimLastCustom[j], 0, WEIGHTYAIM_NUM_CUSTOM - 1);
-		g_WeightyAimAssist[j] = WEIGHTYAIM_ASSIST_DEFAULT;
-		configRegisterInt(strFmt("WeightyAim.Player%d.AimAssist", i), &g_WeightyAimAssist[j], 0, WEIGHTYAIM_NUM_ASSISTS - 1);
+		g_WeightyAimAssistStrength[j] = 1.f;
+		configRegisterFloat(strFmt("WeightyAim.Player%d.AimAssistStrength", i), &g_WeightyAimAssistStrength[j], 0.f, 1.f);
+
+		g_WeightyAimGyroCfg[j] = g_WeightyAimGyroDefaults;
+		configRegisterInt(strFmt("WeightyAim.Player%d.GyroMode", i), &g_WeightyAimGyroCfg[j].mode, 0, WEIGHTYAIM_NUM_GYROMODES - 1);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroSensitivity", i), &g_WeightyAimGyroCfg[j].sensitivity, 0.1f, 20.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroVertical", i), &g_WeightyAimGyroCfg[j].vertical, 0.f, 2.f);
+		configRegisterInt(strFmt("WeightyAim.Player%d.GyroSpace", i), &g_WeightyAimGyroCfg[j].space, 0, WEIGHTYAIM_NUM_GYROSPACES - 1);
+		configRegisterInt(strFmt("WeightyAim.Player%d.GyroInvertY", i), &g_WeightyAimGyroCfg[j].inverty, 0, 1);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroAcceleration", i), &g_WeightyAimGyroCfg[j].acceleration, 1.f, 4.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroAccelThreshold", i), &g_WeightyAimGyroCfg[j].accelthreshold, 5.f, 500.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroTightening", i), &g_WeightyAimGyroCfg[j].tightening, 0.f, 30.f);
+		configRegisterFloat(strFmt("WeightyAim.Player%d.GyroSmoothing", i), &g_WeightyAimGyroCfg[j].smoothing, 0.f, 30.f);
+		configRegisterInt(strFmt("WeightyAim.Player%d.GyroAutoCalibrate", i), &g_WeightyAimGyroCfg[j].autocalibrate, 0, 1);
+		configRegisterInt(strFmt("WeightyAim.Player%d.GyroPauseWithStick", i), &g_WeightyAimGyroCfg[j].pausewithstick, 0, 1);
 
 		for (s32 c = 0; c < WEIGHTYAIM_NUM_CUSTOM; c++) {
 			snprintf(prefix, sizeof(prefix), "WeightyAim.Player%d.Custom%d", i, c + 1);

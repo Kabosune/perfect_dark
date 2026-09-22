@@ -935,6 +935,49 @@ s32 inputControllerConnected(s32 idx)
 	return pads[idx] || (connectedMask & (1 << idx));
 }
 
+// [weightyaim] Motion sensors for gyro aiming. Fills gyro[3] (rad/s: pitch, yaw,
+// roll) and accel[3] (m/s^2, points up when the controller is at rest).
+// Returns 1 if the controller has a gyro, 0 otherwise.
+s32 inputControllerGetMotion(s32 idx, f32 *gyro, f32 *accel)
+{
+#if SDL_VERSION_ATLEAST(2, 0, 14)
+	if (idx < 0 || idx >= INPUT_MAX_CONTROLLERS || !pads[idx]) {
+		return 0;
+	}
+
+	SDL_GameController *pad = pads[idx];
+
+	if (!SDL_GameControllerHasSensor(pad, SDL_SENSOR_GYRO)) {
+		return 0;
+	}
+
+	if (!SDL_GameControllerIsSensorEnabled(pad, SDL_SENSOR_GYRO)) {
+		SDL_GameControllerSetSensorEnabled(pad, SDL_SENSOR_GYRO, SDL_TRUE);
+	}
+
+	if (SDL_GameControllerGetSensorData(pad, SDL_SENSOR_GYRO, gyro, 3) != 0) {
+		return 0;
+	}
+
+	if (accel) {
+		accel[0] = 0.f;
+		accel[1] = 9.81f;
+		accel[2] = 0.f;
+
+		if (SDL_GameControllerHasSensor(pad, SDL_SENSOR_ACCEL)) {
+			if (!SDL_GameControllerIsSensorEnabled(pad, SDL_SENSOR_ACCEL)) {
+				SDL_GameControllerSetSensorEnabled(pad, SDL_SENSOR_ACCEL, SDL_TRUE);
+			}
+			SDL_GameControllerGetSensorData(pad, SDL_SENSOR_ACCEL, accel, 3);
+		}
+	}
+
+	return 1;
+#else
+	return 0;
+#endif
+}
+
 s32 inputRumbleSupported(s32 idx)
 {
 	if (idx < 0 || idx >= INPUT_MAX_CONTROLLERS) {

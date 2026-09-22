@@ -20,6 +20,7 @@
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
  *   Aim Down Sights...     raising the gun to your eye when holding aim
+ *   Gyro Aim...            motion controls (Advanced... inside)
  *   Crosshair / Laser Sight / Aim Assist / Debug Log / Reset
  *
  * Sliders are table driven: each page has a table of weightyaimslider rows
@@ -446,6 +447,171 @@ struct menudialogdef g_WeightyAimAdsMenuDialog = {
 };
 
 /* ------------------------------------------------------------------------
+ * Gyro Aim
+ */
+
+static inline struct weightyaimgyrocfg *weightyAimMenuGyroCfg(void)
+{
+	return &g_WeightyAimGyroCfg[optionsGetExtMenuPlayer() & 3];
+}
+
+static void *weightyAimMenuGyroCfgVoid(void) { return weightyAimMenuGyroCfg(); }
+
+static char *weightyAimGyroStatusLabel(void *item)
+{
+	return (char *)weightyAimGyroStatusText(optionsGetExtMenuPlayer());
+}
+
+// keeps calibration and the status line live while the game is paused
+static s32 menudialogWeightyAimGyro(s32 operation, struct menudialogdef *dialogdef, union handlerdata *data)
+{
+	if (operation == MENUOP_TICK) {
+		weightyAimGyroMenuTick(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimGyroMode(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_GYROMODES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimGyroModeNames[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuGyroCfg()->mode = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuGyroCfg()->mode;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimGyroSpace(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_GYROSPACES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)g_WeightyAimGyroSpaceNames[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuGyroCfg()->space = data->dropdown.value;
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuGyroCfg()->space;
+		break;
+	}
+
+	return 0;
+}
+
+#define WEIGHTYAIM_GYRO_CHECKBOX_HANDLER(fn, field) \
+	static MenuItemHandlerResult fn(s32 operation, struct menuitem *item, union handlerdata *data) \
+	{ \
+		switch (operation) { \
+		case MENUOP_GET: return weightyAimMenuGyroCfg()->field; \
+		case MENUOP_SET: weightyAimMenuGyroCfg()->field = data->checkbox.value; break; \
+		} \
+		return 0; \
+	}
+
+WEIGHTYAIM_GYRO_CHECKBOX_HANDLER(menuhandlerWeightyAimGyroInvertY, inverty)
+WEIGHTYAIM_GYRO_CHECKBOX_HANDLER(menuhandlerWeightyAimGyroAutoCal, autocalibrate)
+WEIGHTYAIM_GYRO_CHECKBOX_HANDLER(menuhandlerWeightyAimGyroPauseStick, pausewithstick)
+
+static MenuItemHandlerResult menuhandlerWeightyAimGyroCalibrate(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimGyroStartCalibration(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimGyroReset(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimResetGyroDefaults(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
+#define GYROFIELD(f) offsetof(struct weightyaimgyrocfg, f)
+
+static const struct weightyaimslider g_WeightyAimGyroSliders[] = {
+	{ GYROFIELD(sensitivity), 0.1f,  0.1f, "%.1f",   NULL, 0, 0.f },
+	{ GYROFIELD(vertical),    0.05f, 0.f,  "%.0f%%", NULL, 1, 0.f },
+};
+
+static const struct weightyaimslider g_WeightyAimGyroAdvSliders[] = {
+	{ GYROFIELD(acceleration),   0.1f, 1.f, "%.1fx",     NULL,  0, 1.f },
+	{ GYROFIELD(accelthreshold), 5.f,  5.f, "%.0f deg/s", NULL, 0, 0.f },
+	{ GYROFIELD(tightening),     0.5f, 0.f, "%.1f deg/s", "Off", 0, 0.f },
+	{ GYROFIELD(smoothing),      0.5f, 0.f, "%.1f deg/s", "Off", 0, 0.f },
+};
+
+struct menuitem g_WeightyAimGyroAdvMenuItems[] = {
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Gyro Space", 0, menuhandlerWeightyAimGyroSpace },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Invert Vertical", 0, menuhandlerWeightyAimGyroInvertY },
+	// order must match g_WeightyAimGyroAdvSliders
+	WEIGHTYAIM_SLIDER("Acceleration", 30),        // 1 - 4x
+	WEIGHTYAIM_SLIDER("Accel. Full At", 60),      // 5 - 300 deg/s
+	WEIGHTYAIM_SLIDER("Tightening", 40),          // 0 - 20 deg/s
+	WEIGHTYAIM_SLIDER("Smoothing", 40),           // 0 - 20 deg/s
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Auto-Calibrate When Still", 0, menuhandlerWeightyAimGyroAutoCal },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Pause While Using Look Stick", 0, menuhandlerWeightyAimGyroPauseStick },
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimGyroAdvMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Gyro Advanced",
+	g_WeightyAimGyroAdvMenuItems,
+	menudialogWeightyAimGyro,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+struct menuitem g_WeightyAimGyroMenuItems[] = {
+	{ MENUITEMTYPE_LABEL, 0, 0, (uintptr_t)weightyAimGyroStatusLabel, 0, NULL },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Gyro Aim", 0, menuhandlerWeightyAimGyroMode },
+	// order must match g_WeightyAimGyroSliders
+	WEIGHTYAIM_SLIDER("Sensitivity", 100),        // 0.1 - 10
+	WEIGHTYAIM_SLIDER("Vertical Sensitivity", 40), // 0 - 200 %
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Calibrate (hold still)\n", 0, menuhandlerWeightyAimGyroCalibrate },
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG, (uintptr_t)"Advanced...\n", 0, (void *)&g_WeightyAimGyroAdvMenuDialog },
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Gyro Settings\n", 0, menuhandlerWeightyAimGyroReset },
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimGyroMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Gyro Aim",
+	g_WeightyAimGyroMenuItems,
+	menudialogWeightyAimGyro,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
+/* ------------------------------------------------------------------------
+ * Aim assist strength (main page)
+ */
+
+static void *weightyAimMenuAssistVoid(void) { return &g_WeightyAimAssistStrength[optionsGetExtMenuPlayer() & 3]; }
+
+static const struct weightyaimslider g_WeightyAimAssistSliders[] = {
+	{ 0, 0.05f, 0.f, "%.0f%%", "Off", 1, 0.f },
+};
+
+extern struct menuitem g_WeightyAimMenuItems[];
+
+/* ------------------------------------------------------------------------
  * Shared slider handler
  */
 
@@ -453,6 +619,9 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimFeelMenuItems,  1, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 	{ g_WeightyAimStickMenuItems, 2, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
+	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
+	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
+	{ g_WeightyAimMenuItems,     10, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
 	{ g_WeightyAimAdsMenuItems,   2, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
@@ -572,27 +741,6 @@ static MenuItemHandlerResult menuhandlerWeightyAimLaser(s32 operation, struct me
 	return 0;
 }
 
-static MenuItemHandlerResult menuhandlerWeightyAimAssist(s32 operation, struct menuitem *item, union handlerdata *data)
-{
-	s32 *assist = &g_WeightyAimAssist[optionsGetExtMenuPlayer() & 3];
-
-	switch (operation) {
-	case MENUOP_GETOPTIONCOUNT:
-		data->dropdown.value = WEIGHTYAIM_NUM_ASSISTS;
-		break;
-	case MENUOP_GETOPTIONTEXT:
-		return (intptr_t)g_WeightyAimAssistNames[data->dropdown.value];
-	case MENUOP_SET:
-		*assist = data->dropdown.value;
-		break;
-	case MENUOP_GETSELECTEDINDEX:
-		data->dropdown.value = *assist;
-		break;
-	}
-
-	return 0;
-}
-
 static MenuItemHandlerResult menuhandlerWeightyAimDebugLog(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -625,10 +773,12 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Turn Boost...\n", g_WeightyAimBoostMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Aim Down Sights...\n", g_WeightyAimAdsMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Gyro Aim...\n", g_WeightyAimGyroMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Sight", 0, menuhandlerWeightyAimLaser },
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Assist", 0, menuhandlerWeightyAimAssist },
+	WEIGHTYAIM_SLIDER("Aim Assist", 20),     // 0 - 100 % of the game's own
+
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Debug Log", 0, menuhandlerWeightyAimDebugLog },
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset to Weighty Preset\n", 0, menuhandlerWeightyAimReset },
 	WEIGHTYAIM_BACK,

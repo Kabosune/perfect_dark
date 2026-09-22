@@ -95,13 +95,44 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
-#define WEIGHTYAIM_ASSIST_DEFAULT 0 // whatever the game and difficulty give you
-#define WEIGHTYAIM_ASSIST_REDUCED 1 // half of that
-#define WEIGHTYAIM_ASSIST_OFF     2 // none, on any difficulty
-#define WEIGHTYAIM_NUM_ASSISTS    3
+extern f32 g_WeightyAimAssistStrength[4]; // 0..1 of what the game and difficulty allow (1 = game default, 0 = off)
 
-extern s32 g_WeightyAimAssist[4];                            // WEIGHTYAIM_ASSIST_*, per player
-extern const char *g_WeightyAimAssistNames[WEIGHTYAIM_NUM_ASSISTS];
+#define WEIGHTYAIM_GYRO_OFF     0
+#define WEIGHTYAIM_GYRO_ALWAYS  1
+#define WEIGHTYAIM_GYRO_AIMING  2 // only while holding aim
+#define WEIGHTYAIM_NUM_GYROMODES 3
+
+#define WEIGHTYAIM_GYROSPACE_PLAYER 0 // turning or leaning the controller both turn you (JibbSmart's "player space")
+#define WEIGHTYAIM_GYROSPACE_LOCAL  1 // only turning the controller flat turns you
+#define WEIGHTYAIM_NUM_GYROSPACES   2
+
+/*
+ * Gyro aiming, following JibbSmart's GyroWiki: sensitivity 1 means turning
+ * the controller 1 degree turns you 1 degree. Gyro input goes through the
+ * same free-aim zone as the stick and mouse.
+ */
+struct weightyaimgyrocfg {
+	s32 mode;            // WEIGHTYAIM_GYRO_*
+	f32 sensitivity;     // in-game degrees per real degree
+	f32 vertical;        // vertical sensitivity as a share of horizontal
+	s32 space;           // WEIGHTYAIM_GYROSPACE_* (advanced)
+	s32 inverty;         // advanced
+	f32 acceleration;    // advanced: sensitivity multiplier for fast motion (1 = off)
+	f32 accelthreshold;  // advanced: speed (deg/s) where acceleration is at full
+	f32 tightening;      // advanced: below this speed (deg/s) input is scaled down to hide jitter (0 = off)
+	f32 smoothing;       // advanced: below this speed (deg/s) input is smoothed (0 = off)
+	s32 autocalibrate;   // advanced: recalibrate whenever the controller is held still
+	s32 pausewithstick;  // advanced: ignore gyro while the look stick is moving
+};
+
+extern struct weightyaimgyrocfg g_WeightyAimGyroCfg[4];
+extern const char *g_WeightyAimGyroModeNames[WEIGHTYAIM_NUM_GYROMODES];
+extern const char *g_WeightyAimGyroSpaceNames[WEIGHTYAIM_NUM_GYROSPACES];
+
+void weightyAimResetGyroDefaults(s32 cfgindex);
+void weightyAimGyroStartCalibration(s32 cfgindex);
+void weightyAimGyroMenuTick(s32 cfgindex);
+const char *weightyAimGyroStatusText(s32 cfgindex);
 
 extern struct weightyaimcfg g_WeightyAimCfg[4];            // live settings
 extern struct weightyaimcfg g_WeightyAimCustomCfg[4][3];     // saved Custom 1-3 profiles
