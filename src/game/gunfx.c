@@ -1103,6 +1103,19 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 	gDPSetTexturePersp(gdl++, G_TP_PERSP);
 	gDPSetColorDither(gdl++, G_CD_DISABLE);
 	gDPSetRenderMode(gdl++, G_RM_AA_ZB_XLU_SURF, G_RM_AA_ZB_XLU_SURF2);
+
+#ifndef PLATFORM_N64
+	// [weightyaim] the dot sits on the first surface the aim hits, so nothing solid
+	// can be in front of it; skip the depth test so the smoke puff and wall mark
+	// from each shot (drawn at the same spot) don't hide it while firing
+	const bool dotnodepth = weightyAimLaserEnhanced();
+
+	if (dotnodepth) {
+		gDPSetRenderMode(gdl++, G_RM_AA_XLU_SURF, G_RM_AA_XLU_SURF2);
+		gSPClearGeometryMode(gdl++, G_ZBUFFER);
+	}
+#endif
+
 	gDPSetAlphaCompare(gdl++, G_AC_NONE);
 	gDPSetTextureLOD(gdl++, G_TL_TILE);
 	gDPSetTextureConvert(gdl++, G_TC_FILT);
@@ -1308,6 +1321,12 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 			}
 		}
 	}
+
+#ifndef PLATFORM_N64
+	if (dotnodepth) {
+		gSPSetGeometryMode(gdl++, G_ZBUFFER);
+	}
+#endif
 
 	return gdl;
 }

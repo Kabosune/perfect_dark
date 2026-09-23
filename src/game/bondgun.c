@@ -8101,14 +8101,16 @@ void bgun0f0a5550(s32 handnum)
 		bgunTickEject(hand, modeldef, isdetonator);
 	}
 
+#ifndef PLATFORM_N64
+	// [weightyaim] RE4-style laser sight on every gun, checked first: the Falcon 2's
+	// own laser code only draws anything on models with a laser attachment
+	if (weightyAimLaserWanted(hand, handnum, weaponnum)) {
+		weightyAimUpdateLaser(hand, handnum);
+	} else
+#endif
 	if (PLAYERCOUNT() == 1 && IS8MB() && hand->visible
 			&& weaponnum >= WEAPON_FALCON2 && weaponnum <= WEAPON_FALCON2_SCOPE) {
 		bgunUpdateLasersight(hand, modeldef, handnum, mtxallocation);
-#ifndef PLATFORM_N64
-	} else if (weightyAimLaserWanted(hand, handnum, weaponnum)) {
-		// [weightyaim] RE4-style laser sight on every gun
-		weightyAimUpdateLaser(hand, handnum);
-#endif
 	} else {
 		lasersightFree(handnum);
 	}

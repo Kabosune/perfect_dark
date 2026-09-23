@@ -225,6 +225,7 @@ struct weightyaimstate {
 	f32 swayphase[3];// camera sway oscillator phases (breath, drift, footsteps)
 	f32 sway[2];     // camera sway offset applied last frame, degrees
 	bool active;     // Weighty Aim drove this player's crosshair on the last update
+	f32 barrelbias[3]; // laser: how far the barrel normally points off the aim line (camera space)
 };
 
 static struct weightyaimstate g_WeightyAimState[MAX_PLAYERS];
@@ -302,7 +303,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.laserdot = 1,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
-	.aimcrosshair = 1,
+	.aimcrosshair = 0,
 	.aimlaserdot = 1,
 	.aimlaserbeam = 1,
 	.ads = 1,
@@ -1690,9 +1691,55 @@ void weightyAimUpdateLaser(struct hand *hand, s32 handnum)
 	beamnear.z = hand->muzzlepos.z;
 
 	if (hand->hasdotinfo) {
-		beamfar.x = hand->dotpos.x;
-		beamfar.y = hand->dotpos.y;
-		beamfar.z = hand->dotpos.z;
+		// The beam runs from the muzzle to the dot, but kicks up with the gun's
+		// recoil and settles back, while the dot stays on the target. The kick is
+		// how far the barrel turns away from its usual line while a shot's
+		// animation plays (its usual offset is learned the rest of the time).
+		struct weightyaimstate *st = weightyAimCurState();
+		const Mtxf *mm = &hand->muzzlemat;
+		const f32 mc[3] = { mm->m[3][0], mm->m[3][1], mm->m[3][2] };
+		struct coord dotworld = hand->dotpos, dotcam;
+		f32 line[3], barrel[3], dir[3], len, blen, dlen;
+		const bool kicking = hand->animmode == HANDANIMMODE_BUSY && hand->state == HANDSTATE_ATTACK;
+
+		mtx4TransformVec(camGetWorldToScreenMtxf(), &dotworld, &dotcam);
+
+		line[0] = dotcam.x - mc[0];
+		line[1] = dotcam.y - mc[1];
+		line[2] = dotcam.z - mc[2];
+		len = bc_sqrtf(line[0] * line[0] + line[1] * line[1] + line[2] * line[2]);
+		blen = bc_sqrtf(mm->m[2][0] * mm->m[2][0] + mm->m[2][1] * mm->m[2][1] + mm->m[2][2] * mm->m[2][2]);
+
+		beamfar = dotworld;
+
+		if (len > 1.f && blen > 0.0001f) {
+			for (s32 i = 0; i < 3; i++) {
+				line[i] /= len;
+				barrel[i] = mm->m[2][i] / blen; // the gun model's forward axis, camera space
+			}
+
+			if (!kicking) {
+				const f32 k = 1.f - bc_expf(-g_Vars.lvupdate60freal / 60.f / 0.1f);
+
+				for (s32 i = 0; i < 3; i++) {
+					st->barrelbias[i] += (barrel[i] - line[i] - st->barrelbias[i]) * k;
+					dir[i] = line[i];
+				}
+			} else {
+				for (s32 i = 0; i < 3; i++) {
+					dir[i] = barrel[i] - st->barrelbias[i];
+				}
+			}
+
+			dlen = bc_sqrtf(dir[0] * dir[0] + dir[1] * dir[1] + dir[2] * dir[2]);
+
+			if (kicking && dlen > 0.0001f) {
+				beamfar.x = mc[0] + dir[0] / dlen * len;
+				beamfar.y = mc[1] + dir[1] / dlen * len;
+				beamfar.z = mc[2] + dir[2] / dlen * len;
+				mtx4TransformVecInPlace(camGetProjectionMtxF(), &beamfar);
+			}
+		}
 	} else {
 		// nothing in range: aim far along the crosshair direction
 		cam0f0b4c3c(g_Vars.currentplayer->crosspos, &beamfar, 1);
@@ -1707,6 +1754,19 @@ void weightyAimUpdateLaser(struct hand *hand, s32 handnum)
 	if (hand->hasdotinfo) {
 		struct coord dotpos = hand->dotpos;
 		struct coord dotrot = hand->dotrot;
+		const struct coord *campos = &g_Vars.currentplayer->cam_pos;
+		const f32 dx = campos->x - dotpos.x, dy = campos->y - dotpos.y, dz = campos->z - dotpos.z;
+		const f32 dist = bc_sqrtf(dx * dx + dy * dy + dz * dz);
+
+		// lift the dot a touch off the surface, toward the eye, so bullet holes
+		// and other wall marks at the same spot can't cover it
+		if (dist > 10.f) {
+			const f32 lift = 2.f / dist;
+			dotpos.x += dx * lift;
+			dotpos.y += dy * lift;
+			dotpos.z += dz * lift;
+		}
+
 		lasersightSetDot(handnum, &dotpos, &dotrot);
 	}
 }
