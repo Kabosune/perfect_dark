@@ -140,22 +140,23 @@ static void weightyAimFeelChanged(s32 sliderindex)
  */
 
 static const struct weightyaimslider g_WeightyAimStickSliders[] = {
-	{ STICKFIELD(innerdeadzone), 0.01f, 0.f,   "%.0f%%", NULL, 1 },
-	{ STICKFIELD(outerdeadzone), 0.01f, 0.1f,  "%.0f%%", NULL, 1 },
 	{ STICKFIELD(turnspeed),     0.05f, 0.25f, "%.2fx",  NULL, 0 },
 	{ STICKFIELD(verticalsens),  0.05f, 0.25f, "%.0f%%", NULL, 1 },
 	{ STICKFIELD(bezier[0]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
 	{ STICKFIELD(bezier[1]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
 	{ STICKFIELD(bezier[2]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
 	{ STICKFIELD(bezier[3]),     0.05f, 0.f,   "%.2f",   NULL, 0 },
+	{ STICKFIELD(innerdeadzone), 0.01f, 0.f,   "%.0f%%", NULL, 1 },
+	{ STICKFIELD(outerdeadzone), 0.01f, 0.1f,  "%.0f%%", NULL, 1 },
 };
 
-#define STICK_FIRST_BEZIER_SLIDER 4
+#define STICK_FIRST_BEZIER_SLIDER 2
+#define STICK_LAST_BEZIER_SLIDER  5
 
 static void weightyAimStickChanged(s32 sliderindex)
 {
 	// moving a curve point switches to a custom curve and saves the points there
-	if (sliderindex >= STICK_FIRST_BEZIER_SLIDER) {
+	if (sliderindex >= STICK_FIRST_BEZIER_SLIDER && sliderindex <= STICK_LAST_BEZIER_SLIDER) {
 		weightyAimCurvePointsChanged(optionsGetExtMenuPlayer());
 	}
 }
@@ -321,14 +322,14 @@ struct menuitem g_WeightyAimStickMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Look Curve", 0, menuhandlerWeightyAimCurve },
 	{ MENUITEMTYPE_CUSTOMRENDER, 0, 0, (intptr_t)weightyAimRenderCurveGraph, 52, NULL },
 	// order must match g_WeightyAimStickSliders
-	WEIGHTYAIM_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
-	WEIGHTYAIM_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
 	WEIGHTYAIM_SLIDER("Sensitivity", 50),        // 0.25 - 2.5x: look speed at full stick
 	WEIGHTYAIM_SLIDER("Vertical Sensitivity", 40), // 25 - 200 % of the left/right speed
 	WEIGHTYAIM_SLIDER("Custom Curve X1", 20),    // 0 - 1
 	WEIGHTYAIM_SLIDER("Custom Curve Y1", 20),
 	WEIGHTYAIM_SLIDER("Custom Curve X2", 20),
 	WEIGHTYAIM_SLIDER("Custom Curve Y2", 20),
+	WEIGHTYAIM_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
+	WEIGHTYAIM_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Stick Response\n", 0, menuhandlerWeightyAimStickReset },
 	WEIGHTYAIM_BACK,
 };
