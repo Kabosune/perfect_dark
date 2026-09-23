@@ -216,6 +216,7 @@ struct weightyaimstate {
 	f32 boostlevel;  // current turn boost, 0..1
 	bool aiming;     // aim button held and Weighty Aim drives the look (Modern Classic / Mobile), this frame
 	bool adsheld;    // aim button held with aim down sights on (any aim mode), this frame
+	bool held;       // aim button held on a gun Weighty Aim applies to (any aim mode), this frame
 	f32 adsblend;    // 0 = hip, 1 = fully aiming (linear, see weightyAimAdsAmount)
 	f32 gunpos[3];   // where the gun model was placed last frame (camera space)
 	bool assistlock; // the game's auto-aim has a target this frame and may pull the crosshair
@@ -263,8 +264,9 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.walksway = 0.25f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
 	.laser = 0,
+	.laserdot = 0,
 	.laserpersist = 1,
-	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
+	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -272,10 +274,10 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.adszoom = 1.3f,
 	.adstime = 0.18f,
 	.adssway = 0.35f,
-	.adszone = 0.6f,
+	.adszone = 1.f,
 	.adsheight = -4.f,
 	.adsmovespeed = 0.6f,
-	.adssens = 0.7f,
+	.adssens = 0.65f,
 };
 
 // Immersive: wide zone, heavy flowing gun, a camera that follows and never sits still
@@ -297,6 +299,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.walksway = 0.8f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_AIMONLY,
 	.laser = 1,
+	.laserdot = 1,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
 	.aimcrosshair = 1,
@@ -306,10 +309,10 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.adszoom = 1.25f,
 	.adstime = 0.26f,
 	.adssway = 0.5f,
-	.adszone = 0.6f,
+	.adszone = 1.f,
 	.adsheight = -4.f,
 	.adsmovespeed = 0.55f,
-	.adssens = 0.7f,
+	.adssens = 0.65f,
 };
 
 // Boring: what most shooters do. Crosshair locked to the centre, the camera
@@ -331,6 +334,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.walksway = 0.f,
 	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
 	.laser = 0,
+	.laserdot = 0,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
 	.aimcrosshair = 1,
@@ -340,10 +344,10 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.adszoom = 1.35f,
 	.adstime = 0.12f,
 	.adssway = 0.f,
-	.adszone = 0.6f,
+	.adszone = 1.f,
 	.adsheight = -4.f,
 	.adsmovespeed = 0.65f,
-	.adssens = 0.7f,
+	.adssens = 0.65f,
 };
 
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
@@ -766,7 +770,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 	// Ease into and out of aiming (and bring the gun up, with aim down sights)
 	{
-		const f32 goal = (st->aiming || st->adsheld) ? 1.f : 0.f;
+		const f32 goal = st->held ? 1.f : 0.f;
 		const f32 step = dtsec / (cfg->adstime > 0.01f ? cfg->adstime : 0.01f);
 
 		if (st->adsblend < goal) {
@@ -1417,6 +1421,7 @@ bool weightyAimPrepareMove(struct movedata *movedata)
 	// Classic aim mode keeps the game's own aiming (the camera stops and the
 	// stick moves the crosshair); Modern Classic and Mobile keep looking around
 	// with Weighty Aim. Aim down sights works on top of any of them.
+	st->held = held;
 	st->aiming = held && cfg->aimmode != WEIGHTYAIM_AIMMODE_CLASSIC;
 	st->adsheld = held && cfg->ads;
 
@@ -1456,13 +1461,20 @@ bool weightyAimAdsMoveWanted(void)
 	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MOBILE && weightyAimCanAim(cfg);
 }
 
+bool weightyAimAimDpadMoveWanted(void)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+
+	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && weightyAimCanAim(cfg);
+}
+
 void weightyAimApplyMoveSpeed(void)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
 	const struct weightyaimstate *st = weightyAimCurState();
 	f32 mult;
 
-	if (!st->aiming || cfg->aimmode != WEIGHTYAIM_AIMMODE_MOBILE) {
+	if (!st->aiming) {
 		return;
 	}
 
@@ -1487,14 +1499,22 @@ f32 weightyAimAdjustZoomFov(f32 zoomfov)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
 	const struct weightyaimstate *st = weightyAimCurState();
-	const f32 ads = weightyAimSightsAmount(cfg, st);
+	f32 amount, zoom;
 
 	// only zoom guns without their own scope zoom
-	if (ads <= 0.f || zoomfov < PLAYER_DEFAULT_FOV - 0.01f) {
+	if (!weightyAimCfgEnabled(cfg) || zoomfov < PLAYER_DEFAULT_FOV - 0.01f) {
 		return zoomfov;
 	}
 
-	return zoomfov / (1.f + (clampf(cfg->adszoom, 1.f, 3.f) - 1.f) * ads);
+	// Sights Zoom applies to any aiming, with or without Aim Down Sights
+	amount = weightyAimAdsAmount(st);
+	zoom = cfg->adszoom;
+
+	if (amount <= 0.f) {
+		return zoomfov;
+	}
+
+	return zoomfov / (1.f + (clampf(zoom, 1.f, 3.f) - 1.f) * amount);
 }
 
 /**
@@ -1596,7 +1616,7 @@ bool weightyAimLaserDotShown(void)
 		return false;
 	}
 
-	return weightyAimHoldingAim(cfg) ? cfg->aimlaserdot : cfg->laser;
+	return weightyAimHoldingAim(cfg) ? cfg->aimlaserdot : cfg->laserdot;
 }
 
 bool weightyAimLaserEnhanced(void)
@@ -1723,6 +1743,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_FLOAT("WalkSway",      walksway,      0.f, 5.f),
 	WA_INT  ("Crosshair",     crosshair,     0, 1),
 	WA_INT  ("LaserSight",    laser,         0, 1),
+	WA_INT  ("LaserDot",      laserdot,      0, 1),
 	WA_INT  ("LaserPersist",  laserpersist,  0, 1),
 	WA_INT  ("AimMode",       aimmode,       0, WEIGHTYAIM_NUM_AIMMODES - 1),
 	WA_INT  ("AimCrosshair",  aimcrosshair,  0, 1),

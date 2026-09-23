@@ -1275,8 +1275,12 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 				// stand still and lean with the move stick (scoped guns that zoom with
 				// the move stick keep the original behaviour)
 				const bool adsmove = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAdsMoveWanted();
+				// [weightyaim] Modern Classic: the move stick leans as in the original,
+				// but the d-pad / C buttons (WASD) still step while aiming
+				const bool adsdpad = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimDpadMoveWanted();
 #else
 				const bool adsmove = false;
+				const bool adsdpad = false;
 #endif
 
 				if (controlmode == CONTROLMODE_PC) {
@@ -1338,12 +1342,12 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 
 					if (controlmode == CONTROLMODE_12 || controlmode == CONTROLMODE_14 || controlmode == CONTROLMODE_PC) {
 						// Handle side stepping
-						if (g_Vars.currentplayer->insightaimmode == false || adsmove) {
+						if (g_Vars.currentplayer->insightaimmode == false || adsmove || adsdpad) {
 							if (allowc1buttons) {
 								movedata.digitalstepleft = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & slmask);
 								movedata.digitalstepright = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & srmask);
 
-								if (adsmove) {
+								if (adsmove || adsdpad) {
 									// [weightyaim] the aiming samples count too
 									movedata.digitalstepleft += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & slmask);
 									movedata.digitalstepright += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & srmask);
@@ -1361,8 +1365,8 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 							}
 						}
 
-						movedata.digitalstepforward = (!g_Vars.currentplayer->insightaimmode || adsmove) && (c1buttons & sumask);
-						movedata.digitalstepback = (!g_Vars.currentplayer->insightaimmode || adsmove) && (c1buttons & sdmask);
+						movedata.digitalstepforward = (!g_Vars.currentplayer->insightaimmode || adsmove || adsdpad) && (c1buttons & sumask);
+						movedata.digitalstepback = (!g_Vars.currentplayer->insightaimmode || adsmove || adsdpad) && (c1buttons & sdmask);
 						movedata.canlookahead = (controlmode == CONTROLMODE_PC) && (!g_Vars.currentplayer->insightaimmode || adsmove) && (c2stickx || c2sticky);
 						movedata.cannaturalpitch = !g_Vars.currentplayer->insightaimmode;
 						movedata.speedvertadown = 0;
@@ -1746,7 +1750,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 						for (i = 0; i < numsamples; i++) {
 							// [weightyaim] walking while aiming: the move stick and keys move you,
 							// they don't crouch (the crouch buttons still do)
-							if (!canmanualzoom && aimonhist[i] && !adsmove) {
+							if (!canmanualzoom && aimonhist[i] && !adsmove && !adsdpad) {
 								bool goUp = joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
 								if (controlmode == CONTROLMODE_PC) {
 									goUp = goUp || ((joyGetRStickYOnSample(i, contpad1) > 30 && joyGetRStickYOnSampleIndex(i, contpad1) <= 30));
@@ -1817,8 +1821,8 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 #endif
 						}
 					} else {
-						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !adsmove && (c1buttons & slmask);
-						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !adsmove && (c1buttons & srmask);
+						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !adsmove && !adsdpad && (c1buttons & slmask);
+						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !adsmove && !adsdpad && (c1buttons & srmask);
 #ifndef PLATFORM_N64
 						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode && !adsmove) {
 							movedata.analoglean = c2stickx / 127.f;

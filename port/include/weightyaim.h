@@ -54,7 +54,8 @@ struct weightyaimcfg {
 	f32 camerasway;      // idle breathing sway of the camera, degrees
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
 	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*, while not aiming
-	s32 laser;           // RE4-style laser sight on every gun (beam and dot), while not aiming
+	s32 laser;           // RE4-style laser beam on every gun, while not aiming
+	s32 laserdot;        // laser dot, while not aiming
 	s32 laserpersist;    // keep the laser dot on screen while firing (it no longer blinks out after each shot)
 
 	// holding the aim button
@@ -63,7 +64,7 @@ struct weightyaimcfg {
 	s32 aimlaserdot;     // laser dot while aiming
 	s32 aimlaserbeam;    // laser beam while aiming
 	s32 ads;             // aim down sights: bring the gun up and zoom in while aiming (any aim mode)
-	f32 adszoom;         // zoom while aiming down sights (1 = none)
+	f32 adszoom;         // Sights Zoom: zoom while aiming, with or without Aim Down Sights (1 = none)
 	f32 adstime;         // seconds to bring the gun up or down
 	f32 adssway;         // share of the sway kept while aiming (0..1)
 	f32 adszone;         // share of the aim feel (free-aim zone, gun weight) kept while aiming (0..1);
@@ -204,6 +205,12 @@ bool weightyAimPrepareMove(struct movedata *movedata);
  * let you walk (Mobile aim mode) instead of the original stand-still-and-lean.
  */
 bool weightyAimAdsMoveWanted(void);
+
+/*
+ * Hook 1f (bondmove.c): Modern Classic aim mode stays put on the move stick,
+ * but the d-pad / C buttons (WASD on keyboard) still step while aiming.
+ */
+bool weightyAimAimDpadMoveWanted(void);
 
 /*
  * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.

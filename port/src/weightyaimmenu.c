@@ -480,7 +480,7 @@ struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the crosshair keeps moving freely
 	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),         // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 % (Mobile)
-	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x (Aim Down Sights)
+	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x, any aiming
 	WEIGHTYAIM_SLIDER("Sights Raise Time", 25),         // 0 - 0.5 s (Aim Down Sights)
 	WEIGHTYAIM_SLIDER("Sights Gun Height", 60),         // -10 - +5 (Aim Down Sights)
 	WEIGHTYAIM_BACK,
@@ -670,7 +670,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
-	{ g_WeightyAimMenuItems,     11, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
+	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
 	{ g_WeightyAimAdsMenuItems,   6, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
@@ -790,6 +790,20 @@ static MenuItemHandlerResult menuhandlerWeightyAimLaser(s32 operation, struct me
 	return 0;
 }
 
+static MenuItemHandlerResult menuhandlerWeightyAimLaserDot(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return weightyAimMenuCfg()->laserdot;
+	case MENUOP_SET:
+		weightyAimMenuCfg()->laserdot = data->checkbox.value;
+		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
+		break;
+	}
+
+	return 0;
+}
+
 static MenuItemHandlerResult menuhandlerWeightyAimLaserPersist(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -839,7 +853,8 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SUBPAGE("Gyro Aim...\n", g_WeightyAimGyroMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Crosshair", 0, menuhandlerWeightyAimCrosshair },
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Sight", 0, menuhandlerWeightyAimLaser },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Beam", 0, menuhandlerWeightyAimLaser },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Dot", 0, menuhandlerWeightyAimLaserDot },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot Stays While Firing", 0, menuhandlerWeightyAimLaserPersist },
 	WEIGHTYAIM_SLIDER("Aim Assist", 20),     // 0 - 100 % of the game's own
 
