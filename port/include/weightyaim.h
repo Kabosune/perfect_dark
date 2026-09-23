@@ -46,6 +46,7 @@ struct weightyaimcfg {
 	f32 cameralead;      // camera drifts toward the gun while aiming inside the zone (per second at the edge)
 	f32 recenterspeed;   // how fast the camera catches up to the gun when idle (per second, 0 = never)
 	f32 recenterdelay;   // seconds without look input before catch-up starts
+	f32 recentersmooth;  // seconds for catch-up to ease in once it starts (0 = starts at full speed)
 	f32 gunresponse;     // weapon inertia spring frequency in Hz (lower = heavier gun)
 	f32 gundamping;      // spring damping ratio (1 = no overshoot, lower = more overshoot)
 	f32 turndrag;        // how much the gun lags behind when the camera turns (0..1)

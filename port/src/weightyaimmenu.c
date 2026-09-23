@@ -93,6 +93,7 @@ static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
 	{ AIMFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off", 0 },
 	{ AIMFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL,  0 },
+	{ AIMFIELD(recentersmooth), 0.05f, 0.f, "%.2fs",    "Off", 0 },
 	{ AIMFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL,  0 },
 	{ AIMFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL,  0 },
 	{ AIMFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL,  0 },
@@ -110,6 +111,7 @@ struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
 	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),       // 0 - 5
 	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),        // 0 - 2 s
+	WEIGHTYAIM_SLIDER("Catch-Up Smoothing", 20),    // 0 - 1 s: eases the camera into re-centring
 	WEIGHTYAIM_SLIDER("Gun Response", 40),          // 1 - 20 Hz
 	WEIGHTYAIM_SLIDER("Gun Damping", 30),           // 0.1 - 1.5
 	WEIGHTYAIM_SLIDER("Turn Drag", 20),             // 0 - 1

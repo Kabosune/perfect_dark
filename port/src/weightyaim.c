@@ -254,9 +254,10 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.cameralead = 0.8f,
 	.recenterspeed = 1.f,
 	.recenterdelay = 0.25f,
-	.gunresponse = 7.f,
+	.recentersmooth = 0.4f,
+	.gunresponse = 8.5f,
 	.gundamping = 0.7f,
-	.turndrag = 0.5f,
+	.turndrag = 0.35f,
 	.edgesmoothing = 0.1f,
 	.camerasway = 0.08f,
 	.walksway = 0.25f,
@@ -287,9 +288,10 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.cameralead = 1.4f,
 	.recenterspeed = 1.3f,
 	.recenterdelay = 0.15f,
-	.gunresponse = 3.9f,
+	.recentersmooth = 0.6f,
+	.gunresponse = 4.6f,
 	.gundamping = 0.52f,
-	.turndrag = 0.8f,
+	.turndrag = 0.6f,
 	.edgesmoothing = 0.2f,
 	.camerasway = 0.32f,
 	.walksway = 0.8f,
@@ -320,6 +322,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.cameralead = 0.f,
 	.recenterspeed = 0.f,
 	.recenterdelay = 0.f,
+	.recentersmooth = 0.f,
 	.gunresponse = 20.f,
 	.gundamping = 1.f,
 	.turndrag = 0.f,
@@ -939,7 +942,13 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 				// already turning from the edge; leading as well would slow that turn down
 				rate = 0.f;
 			} else if (st->idletime > ec->recenterdelay) {
+				// catch-up eases in instead of kicking in at full speed
 				rate = ec->recenterspeed;
+
+				if (ec->recentersmooth > 0.001f) {
+					f32 e = clampf((st->idletime - ec->recenterdelay) / ec->recentersmooth, 0.f, 1.f);
+					rate *= e * e * (3.f - 2.f * e);
+				}
 			} else if (reqlen > 0.0001f || st->idletime > 0.f) {
 				rate = ec->cameralead * edgeness;
 			}
@@ -1025,6 +1034,29 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		}
 
 		weightyAimStepSpring(st, ec, dtsec);
+
+		// Never let the gun trail your aim by more than a little: gun weight and
+		// turn drag should be felt, but on a fast spin the lag otherwise grows
+		// with turn speed and the crosshair falls well behind where you aim.
+		{
+			const f32 maxlag = 0.35f * (zx < zy ? zx : zy) + 1.5f;
+			f32 lag[2], laglen;
+
+			for (s32 i = 0; i < 2; i++) {
+				lag[i] = st->display[i] - (st->target[i] + st->over[i] + st->assist[i]);
+			}
+
+			laglen = bc_sqrtf(lag[0] * lag[0] + lag[1] * lag[1]);
+
+			if (laglen > maxlag) {
+				const f32 keep = maxlag / laglen;
+
+				for (s32 i = 0; i < 2; i++) {
+					st->display[i] -= lag[i] * (1.f - keep);
+					st->vel[i] *= keep;
+				}
+			}
+		}
 
 		// keep the gun on screen even after a violent turn
 		st->display[0] = clampf(st->display[0], -zx * 2.f - 10.f, zx * 2.f + 10.f);
@@ -1682,6 +1714,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_FLOAT("CameraLead",    cameralead,    0.f, 10.f),
 	WA_FLOAT("RecenterSpeed", recenterspeed, 0.f, 10.f),
 	WA_FLOAT("RecenterDelay", recenterdelay, 0.f, 5.f),
+	WA_FLOAT("RecenterSmooth", recentersmooth, 0.f, 2.f),
 	WA_FLOAT("GunResponse",   gunresponse,   0.5f, 40.f),
 	WA_FLOAT("GunDamping",    gundamping,    0.05f, 3.f),
 	WA_FLOAT("TurnDrag",      turndrag,      0.f, 1.f),
