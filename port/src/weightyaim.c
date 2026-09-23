@@ -133,6 +133,7 @@ static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
 		{ 0.4f, 0.0f, 0.75f, 1.0f },
 	},
 	.lastcustomcurve = 0,
+	.gamedeadzone = 1,
 	.turnspeed = 1.f,
 	.verticalsens = 0.8f,
 	.boostmode = WEIGHTYAIM_BOOST_RAMPED,
@@ -153,6 +154,7 @@ void weightyAimResetStickDefaults(s32 cfgindex)
 	sc->innerdeadzone = d->innerdeadzone;
 	sc->outerdeadzone = d->outerdeadzone;
 	sc->turnspeed = d->turnspeed;
+	sc->gamedeadzone = d->gamedeadzone;
 	sc->verticalsens = d->verticalsens;
 	// custom curve profiles are kept; resetting shouldn't wipe your curves
 }
@@ -546,10 +548,14 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, struct wei
 {
 	f32 rx, ry, mag, n, o, lo, hi;
 
-	// PD already subtracted a small 5-unit safe zone; put it back so our own
-	// deadzone is the only one (full deflection is about 127)
-	rx = turn == 0 ? 0.f : (turn + (turn > 0 ? 5 : -5)) / 127.f;
-	ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? 5 : -5)) / 127.f;
+	// PD subtracts a small 5-unit safe zone; put it back so our own deadzone
+	// is the only one (full deflection is about 127). With the game's
+	// deadzone off the values arrive untouched.
+	{
+		const s32 safe = sc->gamedeadzone ? 5 : 0;
+		rx = turn == 0 ? 0.f : (turn + (turn > 0 ? safe : -safe)) / 127.f;
+		ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? safe : -safe)) / 127.f;
+	}
 	mag = bc_sqrtf(rx * rx + ry * ry);
 
 	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
@@ -603,7 +609,7 @@ f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection)
 
 	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
 		// the game's response, including its small 5-unit safe zone
-		analog = (s32)(deflection * 127.f + 0.5f) - 5;
+		analog = (s32)(deflection * 127.f + 0.5f) - (sc->gamedeadzone ? 5 : 0);
 		return analog > 0 ? weightyAimStickCurve(analog) * clampf(sc->turnspeed, 0.1f, 3.f) : 0.f;
 	}
 
@@ -634,6 +640,11 @@ f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection)
  * One cycle is 4.8 seconds:
  *   fast turn right, stop, fast turn left, stop, slow sweep inside the zone, stop.
  */
+bool weightyAimGameDeadzoneWanted(void)
+{
+	return g_WeightyAimStickCfg[g_Vars.currentplayerstats->mpindex & 3].gamedeadzone != 0;
+}
+
 static f32 weightyAimPatternYaw(f32 t)
 {
 	t = bc_fmodf(t, 4.8f);
@@ -1921,6 +1932,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickInnerDeadzone", i), &g_WeightyAimStickCfg[j].innerdeadzone, 0.f, 0.9f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickOuterDeadzone", i), &g_WeightyAimStickCfg[j].outerdeadzone, 0.1f, 1.f);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickTurnSpeed", i), &g_WeightyAimStickCfg[j].turnspeed, 0.1f, 3.f);
+		configRegisterInt(strFmt("WeightyAim.Player%d.StickGameDeadzone", i), &g_WeightyAimStickCfg[j].gamedeadzone, 0, 1);
 		configRegisterFloat(strFmt("WeightyAim.Player%d.StickVerticalSensitivity", i), &g_WeightyAimStickCfg[j].verticalsens, 0.1f, 3.f);
 		configRegisterInt(strFmt("WeightyAim.Player%d.StickLastCustomCurve", i), &g_WeightyAimStickCfg[j].lastcustomcurve, 0, 2);
 

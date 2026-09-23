@@ -309,6 +309,19 @@ static Gfx *weightyAimRenderCurveGraph(Gfx *gdl, struct menurendercontext *conte
 	return gdl;
 }
 
+static MenuItemHandlerResult menuhandlerWeightyAimGameDeadzone(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return weightyAimMenuStickCfg()->gamedeadzone;
+	case MENUOP_SET:
+		weightyAimMenuStickCfg()->gamedeadzone = data->checkbox.value;
+		break;
+	}
+
+	return 0;
+}
+
 static MenuItemHandlerResult menuhandlerWeightyAimStickReset(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	if (operation == MENUOP_SET) {
@@ -330,6 +343,8 @@ struct menuitem g_WeightyAimStickMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Custom Curve Y1", 20),
 	WEIGHTYAIM_SLIDER("Custom Curve X2", 20),
 	WEIGHTYAIM_SLIDER("Custom Curve Y2", 20),
+	// the game's own small deadzone (about 4%), on top of the one above
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Game's Built-In Deadzone", 0, menuhandlerWeightyAimGameDeadzone },
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Stick Response\n", 0, menuhandlerWeightyAimStickReset },
 	WEIGHTYAIM_BACK,
 };

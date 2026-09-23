@@ -107,6 +107,7 @@ struct weightyaimstickcfg {
 	f32 bezier[4];       // the custom curve being used/edited: x1, y1, x2, y2 (0..1)
 	f32 bezierprofile[3][4]; // saved points for Custom 1-3
 	s32 lastcustomcurve; // which custom curve the curve sliders edit when a built-in curve is selected
+	s32 gamedeadzone;    // 1 = keep the game's own small look-stick deadzone (about 4%), 0 = skip it
 	f32 turnspeed;       // look speed at full deflection (1 = the game's max turn rate); the "sensitivity"
 	f32 verticalsens;    // up/down look speed as a share of the left/right speed (1 = same)
 
@@ -189,6 +190,12 @@ void weightyAimCurvePointsChanged(s32 cfgindex);
  */
 f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection);
 void weightyAimResetBoostDefaults(s32 cfgindex);
+
+/*
+ * Hook 1g (bondmove.c): false when the game's own small look-stick deadzone
+ * should be skipped (Game's Built-In Deadzone off on Stick Response).
+ */
+bool weightyAimGameDeadzoneWanted(void);
 
 /*
  * Hook 1 (bondmove.c, before the look code runs): takes this frame's look

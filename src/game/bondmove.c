@@ -809,6 +809,14 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 		movedata.c1stickysafe = 0;
 	}
 
+#ifndef PLATFORM_N64
+	// [weightyaim] Game's Built-In Deadzone off: use the stick as it comes
+	if (!weightyAimGameDeadzoneWanted()) {
+		movedata.c1stickxsafe = c1stickx;
+		movedata.c1stickysafe = c1sticky;
+	}
+#endif
+
 	movedata.c1stickxraw = c1stickx;
 	movedata.c1stickyraw = c1sticky;
 
