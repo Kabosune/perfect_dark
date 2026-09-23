@@ -134,6 +134,9 @@ s32 inputRumbleSupported(s32 idx);
 // returns 1 if specified player has a live controller assigned
 s32 inputControllerConnected(s32 idx);
 
+// [weightyaim] the N64 buttons controller idx is holding through keyboard keys (not a gamepad)
+u32 inputKeyboardButtons(s32 idx);
+
 // [weightyaim] gyro (rad/s) and accelerometer (m/s^2); returns 0 without a gyro
 s32 inputControllerGetMotion(s32 idx, f32 *gyro, f32 *accel);
 

@@ -435,6 +435,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 		weightyAimMenuCfg()->aimmode = data->dropdown.value;
 		// each aim mode comes with its own Move While Aiming default
 		weightyAimMenuCfg()->aimmovement = weightyAimDefaultAimMovement(data->dropdown.value);
+		weightyAimMenuCfg()->aimkbmove = weightyAimDefaultAimKeyboardMove(data->dropdown.value);
 		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 		break;
 	case MENUOP_GETSELECTEDINDEX:
@@ -459,6 +460,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 	}
 
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAds, ads)
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimKeyboardMove, aimkbmove)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimCrosshair, aimcrosshair)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserDot, aimlaserdot)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
@@ -500,7 +502,8 @@ static MenuItemHandlerResult menuhandlerWeightyAimMovement(s32 operation, struct
 struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Mode", 0, menuhandlerWeightyAimMode },
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Move While Aiming", 0, menuhandlerWeightyAimMovement },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Controller: Move While Aiming", 0, menuhandlerWeightyAimMovement },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Keyboard: Move While Aiming", 0, menuhandlerWeightyAimKeyboardMove },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },
@@ -701,7 +704,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
 	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
-	{ g_WeightyAimAdsMenuItems,   7, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimAdsMenuItems,   8, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)

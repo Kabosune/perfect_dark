@@ -269,6 +269,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
 	.aimmovement = WEIGHTYAIM_AIMMOVE_DPAD,
+	.aimkbmove = 1,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -305,6 +306,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
 	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
+	.aimkbmove = 1,
 	.aimcrosshair = 0,
 	.aimlaserdot = 1,
 	.aimlaserbeam = 1,
@@ -341,6 +343,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
 	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
+	.aimkbmove = 1,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -370,8 +373,12 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 		*cfg = g_WeightyAimPresetBoring;
 		break;
 	case WEIGHTYAIM_PRESET_CLASSIC:
-		// keep the current values; Classic just switches the mod off
+		// keep the current values; Classic just switches the mod off, and shows
+		// the original aiming on the Aim Mode page
 		cfg->preset = preset;
+		cfg->aimmode = WEIGHTYAIM_AIMMODE_CLASSIC;
+		cfg->aimmovement = weightyAimDefaultAimMovement(WEIGHTYAIM_AIMMODE_CLASSIC);
+		cfg->aimkbmove = weightyAimDefaultAimKeyboardMove(WEIGHTYAIM_AIMMODE_CLASSIC);
 		break;
 	default:
 		if (WEIGHTYAIM_IS_CUSTOM(preset) && preset < WEIGHTYAIM_NUM_PRESETS) {
@@ -1467,6 +1474,23 @@ s32 weightyAimDefaultAimMovement(s32 aimmode)
 	}
 }
 
+s32 weightyAimDefaultAimKeyboardMove(s32 aimmode)
+{
+	return aimmode != WEIGHTYAIM_AIMMODE_CLASSIC;
+}
+
+bool weightyAimAimKeyboardMoveWanted(void)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+
+	return cfg->aimkbmove && weightyAimCanAim(cfg);
+}
+
+u32 weightyAimKeyboardButtons(s32 contpadnum)
+{
+	return inputKeyboardButtons(contpadnum);
+}
+
 bool weightyAimAimDpadMoveWanted(void)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
@@ -1490,7 +1514,7 @@ void weightyAimApplyMoveSpeed(void)
 	f32 mult;
 
 	// any aim mode, as long as something can walk while aiming
-	if (!st->held || cfg->aimmovement == WEIGHTYAIM_AIMMOVE_OFF) {
+	if (!st->held || (cfg->aimmovement == WEIGHTYAIM_AIMMOVE_OFF && !cfg->aimkbmove)) {
 		return;
 	}
 
@@ -1822,6 +1846,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_INT  ("LaserPersist",  laserpersist,  0, 1),
 	WA_INT  ("AimMode",       aimmode,       0, WEIGHTYAIM_NUM_AIMMODES - 1),
 	WA_INT  ("AimMovement",   aimmovement,   0, WEIGHTYAIM_NUM_AIMMOVES - 1),
+	WA_INT  ("AimKeyboardMove", aimkbmove,   0, 1),
 	WA_INT  ("AimCrosshair",  aimcrosshair,  0, 1),
 	WA_INT  ("AimLaserDot",   aimlaserdot,   0, 1),
 	WA_INT  ("AimLaserBeam",  aimlaserbeam,  0, 1),

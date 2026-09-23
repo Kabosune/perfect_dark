@@ -66,7 +66,8 @@ struct weightyaimcfg {
 
 	// holding the aim button
 	s32 aimmode;         // WEIGHTYAIM_AIMMODE_*
-	s32 aimmovement;     // WEIGHTYAIM_AIMMOVE_*: what can walk while aiming (any aim mode)
+	s32 aimmovement;     // WEIGHTYAIM_AIMMOVE_*: what can walk while aiming on a controller (any aim mode)
+	s32 aimkbmove;       // keyboard: WASD walks while aiming (any aim mode)
 	s32 aimcrosshair;    // crosshair while aiming
 	s32 aimlaserdot;     // laser dot while aiming
 	s32 aimlaserbeam;    // laser beam while aiming
@@ -214,7 +215,10 @@ bool weightyAimPrepareMove(struct movedata *movedata);
  */
 bool weightyAimAimDpadMoveWanted(void);
 bool weightyAimAimStickMoveWanted(void);
+bool weightyAimAimKeyboardMoveWanted(void);
+u32 weightyAimKeyboardButtons(s32 contpadnum); // N64 buttons held on the keyboard
 s32 weightyAimDefaultAimMovement(s32 aimmode);
+s32 weightyAimDefaultAimKeyboardMove(s32 aimmode);
 
 /*
  * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.

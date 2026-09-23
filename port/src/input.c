@@ -774,6 +774,28 @@ static inline s32 inputBindPressed(const s32 idx, const u32 ck)
 	return 0;
 }
 
+u32 inputKeyboardButtons(s32 idx)
+{
+	u32 out = 0;
+
+	if (idx < 0 || idx >= MAXCONTROLLERS) {
+		return 0;
+	}
+
+	for (u32 i = 0; i < CONT_NUM_BUTTONS; ++i) {
+		for (s32 b = 0; b < INPUT_MAX_BINDS; ++b) {
+			const u32 vk = binds[idx][i][b];
+
+			if (vk && vk < VK_MOUSE_BEGIN && inputKeyPressed(vk)) {
+				out |= 1U << i;
+				break;
+			}
+		}
+	}
+
+	return out;
+}
+
 static inline s32 inputAxisScale(s32 x, const s32 deadzone, const f32 scale)
 {
 	if (abs(x) < deadzone) {

@@ -1277,10 +1277,17 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 				// Scoped guns that zoom with the move stick keep the original behaviour.
 				const bool adsdpad = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimDpadMoveWanted();
 				const bool adsstick = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimStickMoveWanted();
+				// the keyboard's WASD press the same buttons as the d-pad, but has its own setting
+				const bool adskb = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimKeyboardMoveWanted();
+				const u32 kbbuttons = controlmode == CONTROLMODE_PC ? weightyAimKeyboardButtons(contpad1) : 0;
 #else
 				const bool adsdpad = false;
 				const bool adsstick = false;
+				const bool adskb = false;
+				const u32 kbbuttons = 0;
 #endif
+				// can this d-pad / C button direction walk while aiming?
+#define AIMSTEP(mask) ((kbbuttons & (mask)) ? adskb : adsdpad)
 
 				if (controlmode == CONTROLMODE_PC) {
 					if (!g_Vars.currentplayer->insightaimmode || adsstick) {
@@ -1341,14 +1348,17 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 
 					if (controlmode == CONTROLMODE_12 || controlmode == CONTROLMODE_14 || controlmode == CONTROLMODE_PC) {
 						// Handle side stepping
-						if (g_Vars.currentplayer->insightaimmode == false || adsdpad) {
+						if (g_Vars.currentplayer->insightaimmode == false || AIMSTEP(slmask) || AIMSTEP(srmask)) {
 							if (allowc1buttons) {
 								movedata.digitalstepleft = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & slmask);
 								movedata.digitalstepright = joyCountButtonsOnSpecificSamples(aimoffhist, contpad1, c1allowedbuttons & srmask);
 
-								if (adsdpad) {
-									// [weightyaim] the aiming samples count too
+								// [weightyaim] the aiming samples count too
+								if (AIMSTEP(slmask)) {
 									movedata.digitalstepleft += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & slmask);
+								}
+
+								if (AIMSTEP(srmask)) {
 									movedata.digitalstepright += joyCountButtonsOnSpecificSamples(aimonhist, contpad1, c1allowedbuttons & srmask);
 								}
 							}
@@ -1364,8 +1374,8 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 							}
 						}
 
-						movedata.digitalstepforward = (!g_Vars.currentplayer->insightaimmode || adsdpad) && (c1buttons & sumask);
-						movedata.digitalstepback = (!g_Vars.currentplayer->insightaimmode || adsdpad) && (c1buttons & sdmask);
+						movedata.digitalstepforward = (!g_Vars.currentplayer->insightaimmode || AIMSTEP(sumask)) && (c1buttons & sumask);
+						movedata.digitalstepback = (!g_Vars.currentplayer->insightaimmode || AIMSTEP(sdmask)) && (c1buttons & sdmask);
 						movedata.canlookahead = (controlmode == CONTROLMODE_PC) && (!g_Vars.currentplayer->insightaimmode || adsstick) && (c2stickx || c2sticky);
 						movedata.cannaturalpitch = !g_Vars.currentplayer->insightaimmode;
 						movedata.speedvertadown = 0;
@@ -1749,7 +1759,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 						for (i = 0; i < numsamples; i++) {
 							if (!canmanualzoom && aimonhist[i]) {
 								// [weightyaim] whichever of the d-pad and stick walks while aiming doesn't crouch
-								bool goUp = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
+								bool goUp = !AIMSTEP(sumask) && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
 								if (controlmode == CONTROLMODE_PC && !adsstick) {
 									goUp = goUp || ((joyGetRStickYOnSample(i, contpad1) > 30 && joyGetRStickYOnSampleIndex(i, contpad1) <= 30));
 								}
@@ -1763,7 +1773,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 									g_Vars.currentplayer->aimtaptime = -1;
 								}
 
-								bool goDn = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sdmask);
+								bool goDn = !AIMSTEP(sdmask) && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sdmask);
 								if (controlmode == CONTROLMODE_PC && !adsstick) {
 									goDn = goDn || ((joyGetRStickYOnSample(i, contpad1) < -30 && joyGetRStickYOnSampleIndex(i, contpad1) >= -30));
 								}
@@ -1819,8 +1829,8 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 #endif
 						}
 					} else {
-						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !adsdpad && (c1buttons & slmask);
-						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !adsdpad && (c1buttons & srmask);
+						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !AIMSTEP(slmask) && (c1buttons & slmask);
+						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !AIMSTEP(srmask) && (c1buttons & srmask);
 #ifndef PLATFORM_N64
 						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode && !adsstick) {
 							movedata.analoglean = c2stickx / 127.f;
