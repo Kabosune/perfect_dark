@@ -2,7 +2,7 @@
 
 Weighty Aim is a mod for the Perfect Dark PC port that reworks aiming: a free-aim
 zone where the gun moves before the camera turns, weapon weight and sway, aim
-down sights, stick response curves, turn boost, gyro aiming and an optional
+down sights, stick response curves, look acceleration, gyro aiming and an optional
 laser sight.
 
 **This is a beta.** Expect rough edges, and please report anything odd.

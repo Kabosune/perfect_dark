@@ -399,20 +399,20 @@ static MenuItemHandlerResult menuhandlerWeightyAimBoostReset(s32 operation, stru
 }
 
 struct menuitem g_WeightyAimBoostMenuItems[] = {
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Turn Boost", 0, menuhandlerWeightyAimBoostMode },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Look Acceleration", 0, menuhandlerWeightyAimBoostMode },
 	// order must match g_WeightyAimBoostSliders
-	WEIGHTYAIM_SLIDER("Boost Speed", 60),        // 1 - 4x
+	WEIGHTYAIM_SLIDER("Acceleration Speed", 60),        // 1 - 4x
 	WEIGHTYAIM_SLIDER("Stick Threshold", 100),   // 50 - 100 %
-	WEIGHTYAIM_SLIDER("Boost Delay", 25),        // 0 - 0.5 s (Ramped)
+	WEIGHTYAIM_SLIDER("Acceleration Delay", 25),        // 0 - 0.5 s (Ramped)
 	WEIGHTYAIM_SLIDER("Ramp-Up Time", 20),       // 0 - 1 s (Ramped)
-	WEIGHTYAIM_SLIDER("Vertical Boost", 20),     // 0 - 100 %
-	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Turn Boost\n", 0, menuhandlerWeightyAimBoostReset },
+	WEIGHTYAIM_SLIDER("Vertical Acceleration", 20),     // 0 - 100 %
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Look Acceleration\n", 0, menuhandlerWeightyAimBoostReset },
 	WEIGHTYAIM_BACK,
 };
 
 struct menudialogdef g_WeightyAimBoostMenuDialog = {
 	MENUDIALOGTYPE_DEFAULT,
-	(uintptr_t)"Turn Boost",
+	(uintptr_t)"Look Acceleration",
 	g_WeightyAimBoostMenuItems,
 	NULL,
 	MENUDIALOGFLAG_LITERAL_TEXT,
@@ -897,7 +897,7 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),
-	WEIGHTYAIM_SUBPAGE("Turn Boost...\n", g_WeightyAimBoostMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Look Acceleration...\n", g_WeightyAimBoostMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Aim Mode...\n", g_WeightyAimAdsMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Gyro Aim...\n", g_WeightyAimGyroMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
