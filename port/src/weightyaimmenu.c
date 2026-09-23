@@ -433,6 +433,8 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 		return (intptr_t)opts[data->dropdown.value];
 	case MENUOP_SET:
 		weightyAimMenuCfg()->aimmode = data->dropdown.value;
+		// each aim mode comes with its own Move While Aiming default
+		weightyAimMenuCfg()->aimmovement = weightyAimDefaultAimMovement(data->dropdown.value);
 		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
 		break;
 	case MENUOP_GETSELECTEDINDEX:
@@ -457,10 +459,36 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 	}
 
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAds, ads)
-WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimDpadMove, aimdpadmove)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimCrosshair, aimcrosshair)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserDot, aimlaserdot)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
+
+static MenuItemHandlerResult menuhandlerWeightyAimMovement(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	static const char *opts[WEIGHTYAIM_NUM_AIMMOVES] = {
+		"Off",
+		"D-Pad",
+		"Stick",
+		"D-Pad + Stick",
+	};
+
+	switch (operation) {
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_AIMMOVES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)opts[data->dropdown.value];
+	case MENUOP_SET:
+		weightyAimMenuCfg()->aimmovement = data->dropdown.value;
+		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuCfg()->aimmovement;
+		break;
+	}
+
+	return 0;
+}
 
 /*
  * Aim Mode:
@@ -472,8 +500,7 @@ WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
 struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Mode", 0, menuhandlerWeightyAimMode },
-	// Modern Classic: on = d-pad steps and the stick stays grounded (leans), off = swapped
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Modern Classic: D-Pad Moves", 0, menuhandlerWeightyAimDpadMove },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Move While Aiming", 0, menuhandlerWeightyAimMovement },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },

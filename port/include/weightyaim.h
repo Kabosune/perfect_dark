@@ -37,6 +37,12 @@
 #define WEIGHTYAIM_AIMMODE_MOBILE  2 // Weighty Aim's look controls while aiming, and you can walk
 #define WEIGHTYAIM_NUM_AIMMODES    3
 
+#define WEIGHTYAIM_AIMMOVE_OFF   0 // stand still while aiming (the original game)
+#define WEIGHTYAIM_AIMMOVE_DPAD  1 // the d-pad / C buttons (WASD) walk; the stick leans and crouches
+#define WEIGHTYAIM_AIMMOVE_STICK 2 // the move stick walks; the d-pad leans and crouches
+#define WEIGHTYAIM_AIMMOVE_BOTH  3
+#define WEIGHTYAIM_NUM_AIMMOVES  4
+
 struct weightyaimcfg {
 	s32 preset;          // WEIGHTYAIM_PRESET_*; CLASSIC turns the mod off
 	f32 deadzonex;       // half-width of the free-aim zone, degrees
@@ -60,7 +66,7 @@ struct weightyaimcfg {
 
 	// holding the aim button
 	s32 aimmode;         // WEIGHTYAIM_AIMMODE_*
-	s32 aimdpadmove;     // Modern Classic: 1 = d-pad / WASD step, stick stays grounded; 0 = the other way round
+	s32 aimmovement;     // WEIGHTYAIM_AIMMOVE_*: what can walk while aiming (any aim mode)
 	s32 aimcrosshair;    // crosshair while aiming
 	s32 aimlaserdot;     // laser dot while aiming
 	s32 aimlaserbeam;    // laser beam while aiming
@@ -202,17 +208,13 @@ struct movedata;
 bool weightyAimPrepareMove(struct movedata *movedata);
 
 /*
- * Hook 1d (bondmove.c, PC control style input): true if holding aim should
- * let you walk (Mobile aim mode) instead of the original stand-still-and-lean.
- */
-bool weightyAimAdsMoveWanted(void);
-
-/*
- * Hook 1f (bondmove.c): Modern Classic aim mode stays put on the move stick,
- * but the d-pad / C buttons (WASD on keyboard) still step while aiming.
+ * Hook 1d (bondmove.c, PC control style input): Move While Aiming, whether
+ * the d-pad / C buttons (WASD) and the move stick walk while holding aim
+ * instead of the original stand-still-and-lean.
  */
 bool weightyAimAimDpadMoveWanted(void);
 bool weightyAimAimStickMoveWanted(void);
+s32 weightyAimDefaultAimMovement(s32 aimmode);
 
 /*
  * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.

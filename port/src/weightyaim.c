@@ -268,7 +268,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.laserdot = 0,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
-	.aimdpadmove = 1,
+	.aimmovement = WEIGHTYAIM_AIMMOVE_DPAD,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -304,7 +304,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.laserdot = 1,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
-	.aimdpadmove = 1,
+	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
 	.aimcrosshair = 0,
 	.aimlaserdot = 1,
 	.aimlaserbeam = 1,
@@ -340,7 +340,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.laserdot = 0,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
-	.aimdpadmove = 1,
+	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -1458,25 +1458,29 @@ bool weightyAimPrepareMove(struct movedata *movedata)
 	return st->aiming;
 }
 
-bool weightyAimAdsMoveWanted(void)
+s32 weightyAimDefaultAimMovement(s32 aimmode)
 {
-	const struct weightyaimcfg *cfg = weightyAimCurCfg();
-
-	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MOBILE && weightyAimCanAim(cfg);
+	switch (aimmode) {
+	case WEIGHTYAIM_AIMMODE_CLASSIC: return WEIGHTYAIM_AIMMOVE_OFF;
+	case WEIGHTYAIM_AIMMODE_MODERN:  return WEIGHTYAIM_AIMMOVE_DPAD;
+	default:                         return WEIGHTYAIM_AIMMOVE_BOTH;
+	}
 }
 
 bool weightyAimAimDpadMoveWanted(void)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
 
-	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && cfg->aimdpadmove && weightyAimCanAim(cfg);
+	return (cfg->aimmovement == WEIGHTYAIM_AIMMOVE_DPAD || cfg->aimmovement == WEIGHTYAIM_AIMMOVE_BOTH)
+		&& weightyAimCanAim(cfg);
 }
 
 bool weightyAimAimStickMoveWanted(void)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
 
-	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && !cfg->aimdpadmove && weightyAimCanAim(cfg);
+	return (cfg->aimmovement == WEIGHTYAIM_AIMMOVE_STICK || cfg->aimmovement == WEIGHTYAIM_AIMMOVE_BOTH)
+		&& weightyAimCanAim(cfg);
 }
 
 void weightyAimApplyMoveSpeed(void)
@@ -1485,7 +1489,8 @@ void weightyAimApplyMoveSpeed(void)
 	const struct weightyaimstate *st = weightyAimCurState();
 	f32 mult;
 
-	if (!st->aiming) {
+	// any aim mode, as long as something can walk while aiming
+	if (!st->held || cfg->aimmovement == WEIGHTYAIM_AIMMOVE_OFF) {
 		return;
 	}
 
@@ -1816,7 +1821,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_INT  ("LaserDot",      laserdot,      0, 1),
 	WA_INT  ("LaserPersist",  laserpersist,  0, 1),
 	WA_INT  ("AimMode",       aimmode,       0, WEIGHTYAIM_NUM_AIMMODES - 1),
-	WA_INT  ("AimDpadMove",   aimdpadmove,   0, 1),
+	WA_INT  ("AimMovement",   aimmovement,   0, WEIGHTYAIM_NUM_AIMMOVES - 1),
 	WA_INT  ("AimCrosshair",  aimcrosshair,  0, 1),
 	WA_INT  ("AimLaserDot",   aimlaserdot,   0, 1),
 	WA_INT  ("AimLaserBeam",  aimlaserbeam,  0, 1),
