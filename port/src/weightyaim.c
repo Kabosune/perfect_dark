@@ -272,7 +272,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.adstime = 0.18f,
 	.adssway = 0.35f,
 	.adszone = 0.6f,
-	.adsheight = -3.f,
+	.adsheight = -4.f,
 	.adsmovespeed = 0.6f,
 	.adssens = 0.7f,
 };
@@ -305,7 +305,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.adstime = 0.26f,
 	.adssway = 0.5f,
 	.adszone = 0.6f,
-	.adsheight = -3.f,
+	.adsheight = -4.f,
 	.adsmovespeed = 0.55f,
 	.adssens = 0.7f,
 };
@@ -338,7 +338,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.adstime = 0.12f,
 	.adssway = 0.f,
 	.adszone = 0.6f,
-	.adsheight = -3.f,
+	.adsheight = -4.f,
 	.adsmovespeed = 0.65f,
 	.adssens = 0.7f,
 };
