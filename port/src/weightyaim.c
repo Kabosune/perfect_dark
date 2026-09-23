@@ -124,7 +124,7 @@ const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS] = {
 
 static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
 	.curve = WEIGHTYAIM_CURVE_BALANCED,
-	.innerdeadzone = 0.08f,
+	.innerdeadzone = 0.01f,
 	.outerdeadzone = 0.95f,
 	.bezier = { 0.4f, 0.0f, 0.75f, 1.0f },
 	.bezierprofile = {
