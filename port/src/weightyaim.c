@@ -268,6 +268,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.laserdot = 0,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
+	.aimdpadmove = 1,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -303,6 +304,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.laserdot = 1,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
+	.aimdpadmove = 1,
 	.aimcrosshair = 0,
 	.aimlaserdot = 1,
 	.aimlaserbeam = 1,
@@ -338,6 +340,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.laserdot = 0,
 	.laserpersist = 1,
 	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
+	.aimdpadmove = 1,
 	.aimcrosshair = 1,
 	.aimlaserdot = 0,
 	.aimlaserbeam = 0,
@@ -1466,7 +1469,14 @@ bool weightyAimAimDpadMoveWanted(void)
 {
 	const struct weightyaimcfg *cfg = weightyAimCurCfg();
 
-	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && weightyAimCanAim(cfg);
+	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && cfg->aimdpadmove && weightyAimCanAim(cfg);
+}
+
+bool weightyAimAimStickMoveWanted(void)
+{
+	const struct weightyaimcfg *cfg = weightyAimCurCfg();
+
+	return cfg->aimmode == WEIGHTYAIM_AIMMODE_MODERN && !cfg->aimdpadmove && weightyAimCanAim(cfg);
 }
 
 void weightyAimApplyMoveSpeed(void)
@@ -1806,6 +1816,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_INT  ("LaserDot",      laserdot,      0, 1),
 	WA_INT  ("LaserPersist",  laserpersist,  0, 1),
 	WA_INT  ("AimMode",       aimmode,       0, WEIGHTYAIM_NUM_AIMMODES - 1),
+	WA_INT  ("AimDpadMove",   aimdpadmove,   0, 1),
 	WA_INT  ("AimCrosshair",  aimcrosshair,  0, 1),
 	WA_INT  ("AimLaserDot",   aimlaserdot,   0, 1),
 	WA_INT  ("AimLaserBeam",  aimlaserbeam,  0, 1),

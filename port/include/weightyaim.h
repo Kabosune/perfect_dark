@@ -60,6 +60,7 @@ struct weightyaimcfg {
 
 	// holding the aim button
 	s32 aimmode;         // WEIGHTYAIM_AIMMODE_*
+	s32 aimdpadmove;     // Modern Classic: 1 = d-pad / WASD step, stick stays grounded; 0 = the other way round
 	s32 aimcrosshair;    // crosshair while aiming
 	s32 aimlaserdot;     // laser dot while aiming
 	s32 aimlaserbeam;    // laser beam while aiming
@@ -211,6 +212,7 @@ bool weightyAimAdsMoveWanted(void);
  * but the d-pad / C buttons (WASD on keyboard) still step while aiming.
  */
 bool weightyAimAimDpadMoveWanted(void);
+bool weightyAimAimStickMoveWanted(void);
 
 /*
  * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.

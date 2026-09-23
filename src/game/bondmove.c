@@ -1278,13 +1278,16 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 				// [weightyaim] Modern Classic: the move stick leans as in the original,
 				// but the d-pad / C buttons (WASD) still step while aiming
 				const bool adsdpad = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimDpadMoveWanted();
+				// [weightyaim] Modern Classic, swapped: the move stick walks, the d-pad stays grounded
+				const bool adsstick = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAimStickMoveWanted();
 #else
 				const bool adsmove = false;
 				const bool adsdpad = false;
+				const bool adsstick = false;
 #endif
 
 				if (controlmode == CONTROLMODE_PC) {
-					if (!g_Vars.currentplayer->insightaimmode || adsmove) {
+					if (!g_Vars.currentplayer->insightaimmode || adsmove || adsstick) {
 						movedata.analogstrafe = c2stickx;
 						movedata.analogwalk = c2sticky;
 						movedata.unk14 = (c2stickx || c2sticky);
@@ -1753,7 +1756,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 							if (!canmanualzoom && aimonhist[i] && !adsmove) {
 								// [weightyaim] Modern Classic: d-pad / WASD step while aiming, so only the stick crouches
 								bool goUp = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
-								if (controlmode == CONTROLMODE_PC) {
+								if (controlmode == CONTROLMODE_PC && !adsstick) {
 									goUp = goUp || ((joyGetRStickYOnSample(i, contpad1) > 30 && joyGetRStickYOnSampleIndex(i, contpad1) <= 30));
 								}
 								if (goUp) {
@@ -1767,7 +1770,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 								}
 
 								bool goDn = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sdmask);
-								if (controlmode == CONTROLMODE_PC) {
+								if (controlmode == CONTROLMODE_PC && !adsstick) {
 									goDn = goDn || ((joyGetRStickYOnSample(i, contpad1) < -30 && joyGetRStickYOnSampleIndex(i, contpad1) >= -30));
 								}
 								if (goDn) {
@@ -1825,7 +1828,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 						movedata.rleanleft = g_Vars.currentplayer->insightaimmode && !adsmove && !adsdpad && (c1buttons & slmask);
 						movedata.rleanright = g_Vars.currentplayer->insightaimmode && !adsmove && !adsdpad && (c1buttons & srmask);
 #ifndef PLATFORM_N64
-						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode && !adsmove) {
+						if (controlmode == CONTROLMODE_PC && g_Vars.currentplayer->insightaimmode && !adsmove && !adsstick) {
 							movedata.analoglean = c2stickx / 127.f;
 						}
 #endif

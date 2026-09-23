@@ -457,6 +457,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 	}
 
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAds, ads)
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimDpadMove, aimdpadmove)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimCrosshair, aimcrosshair)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserDot, aimlaserdot)
 WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
@@ -471,6 +472,8 @@ WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
 struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Mode", 0, menuhandlerWeightyAimMode },
+	// Modern Classic: on = d-pad steps and the stick stays grounded (leans), off = swapped
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Modern Classic: D-Pad Moves", 0, menuhandlerWeightyAimDpadMove },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },
@@ -671,7 +674,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
 	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
-	{ g_WeightyAimAdsMenuItems,   6, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimAdsMenuItems,   7, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
