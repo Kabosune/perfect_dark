@@ -134,7 +134,7 @@ static const struct weightyaimstickcfg g_WeightyAimStickDefaults = {
 	},
 	.lastcustomcurve = 0,
 	.turnspeed = 1.f,
-	.verticalsens = 0.85f,
+	.verticalsens = 0.8f,
 	.boostmode = WEIGHTYAIM_BOOST_RAMPED,
 	.boostamount = 1.8f,
 	.boostthreshold = 0.9f,
