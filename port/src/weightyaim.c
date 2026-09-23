@@ -216,7 +216,7 @@ struct weightyaimstate {
 	f32 idletime;    // seconds since the last look input
 	f32 boostheld;   // seconds the stick has been held past the boost threshold
 	f32 boostlevel;  // current turn boost, 0..1
-	bool aiming;     // aim button held and Weighty Aim drives the look (Modern Classic / Mobile), this frame
+	bool aiming;     // aim button held and Weighty Aim drives the look (Modern), this frame
 	bool adsheld;    // aim button held with aim down sights on (any aim mode), this frame
 	bool held;       // aim button held on a gun Weighty Aim applies to (any aim mode), this frame
 	f32 adsblend;    // 0 = hip, 1 = fully aiming (linear, see weightyAimAdsAmount)
@@ -306,8 +306,8 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.laser = 1,
 	.laserdot = 1,
 	.laserpersist = 1,
-	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
-	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
+	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
+	.aimmovement = WEIGHTYAIM_AIMMOVE_DPAD,
 	.aimkbmove = 1,
 	.aimcrosshair = 0,
 	.aimlaserdot = 1,
@@ -343,7 +343,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.laser = 0,
 	.laserdot = 0,
 	.laserpersist = 1,
-	.aimmode = WEIGHTYAIM_AIMMODE_MOBILE,
+	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
 	.aimmovement = WEIGHTYAIM_AIMMOVE_BOTH,
 	.aimkbmove = 1,
 	.aimcrosshair = 1,
@@ -1441,7 +1441,7 @@ bool weightyAimPrepareMove(struct movedata *movedata)
 	const bool held = g_Vars.currentplayer->insightaimmode && weightyAimCanAim(cfg);
 
 	// Classic aim mode keeps the game's own aiming (the camera stops and the
-	// stick moves the crosshair); Modern Classic and Mobile keep looking around
+	// stick moves the crosshair); Modern keeps looking around
 	// with Weighty Aim. Aim down sights works on top of any of them.
 	st->held = held;
 	st->aiming = held && cfg->aimmode != WEIGHTYAIM_AIMMODE_CLASSIC;
@@ -1480,8 +1480,7 @@ s32 weightyAimDefaultAimMovement(s32 aimmode)
 {
 	switch (aimmode) {
 	case WEIGHTYAIM_AIMMODE_CLASSIC: return WEIGHTYAIM_AIMMOVE_OFF;
-	case WEIGHTYAIM_AIMMODE_MODERN:  return WEIGHTYAIM_AIMMOVE_DPAD;
-	default:                         return WEIGHTYAIM_AIMMOVE_BOTH;
+	default:                         return WEIGHTYAIM_AIMMOVE_DPAD;
 	}
 }
 

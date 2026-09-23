@@ -437,8 +437,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct men
 {
 	static const char *opts[WEIGHTYAIM_NUM_AIMMODES] = {
 		"Classic",
-		"Modern Classic",
-		"Mobile",
+		"Modern",
 	};
 
 	switch (operation) {
@@ -511,8 +510,8 @@ static MenuItemHandlerResult menuhandlerWeightyAimMovement(s32 operation, struct
 /*
  * Aim Mode:
  *   Classic         the game's own aiming: the camera stops, the stick moves the crosshair
- *   Modern Classic  keep looking around with Weighty Aim while aiming, standing still
- *   Mobile          the same, and you can walk (slower) while aiming
+ *   Modern          keep looking around with Weighty Aim while aiming, standing still
+ *   (Move While Aiming decides what can walk while aiming, in either mode)
  * Aim Down Sights brings the gun in and zooms, in any of them.
  */
 struct menuitem g_WeightyAimAdsMenuItems[] = {
@@ -528,7 +527,7 @@ struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Aim Sensitivity", 16),           // 20 - 100 %
 	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the crosshair keeps moving freely
 	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),         // 0 - 100 %
-	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 % (Mobile)
+	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 %
 	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x, any aiming
 	WEIGHTYAIM_SLIDER("Sights Raise Time", 25),         // 0 - 0.5 s (Aim Down Sights)
 	WEIGHTYAIM_SLIDER("Sights Gun Height", 60),         // -10 - +5 (Aim Down Sights)

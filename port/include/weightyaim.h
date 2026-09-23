@@ -33,9 +33,8 @@
 #define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing ("Off"); aiming has its own setting
 
 #define WEIGHTYAIM_AIMMODE_CLASSIC 0 // the game's own aim mode: camera stops, the stick moves the crosshair
-#define WEIGHTYAIM_AIMMODE_MODERN  1 // Weighty Aim's look controls while aiming, standing still
-#define WEIGHTYAIM_AIMMODE_MOBILE  2 // Weighty Aim's look controls while aiming, and you can walk
-#define WEIGHTYAIM_NUM_AIMMODES    3
+#define WEIGHTYAIM_AIMMODE_MODERN  1 // Weighty Aim's look controls while aiming (moving is up to Move While Aiming)
+#define WEIGHTYAIM_NUM_AIMMODES    2
 
 #define WEIGHTYAIM_AIMMOVE_OFF   0 // stand still while aiming (the original game)
 #define WEIGHTYAIM_AIMMOVE_DPAD  1 // the d-pad / C buttons (WASD) walk; the stick leans and crouches
@@ -78,7 +77,7 @@ struct weightyaimcfg {
 	f32 adszone;         // share of the aim feel (free-aim zone, gun weight) kept while aiming (0..1);
 	                     // at 1 the crosshair moves exactly like hip-fire, at 0 it's pulled to the centre
 	f32 adsheight;       // how high the gun sits when aiming down sights (screen units, + = higher)
-	f32 adsmovespeed;    // Mobile aim mode: walking speed while aiming, share of normal (0..1)
+	f32 adsmovespeed;    // Move While Aiming: walking speed while aiming, share of normal (0..1)
 	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
 };
 

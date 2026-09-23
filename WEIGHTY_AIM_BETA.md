@@ -29,9 +29,9 @@ Controller, Stick and in-game Control Options pages).
   saves it to a custom profile.
 - **Aim Mode**: what holding aim does.
   - Classic: the original game's aiming.
-  - Modern Classic (default): look around normally while aiming, stand still;
-    the d-pad / WASD can still step.
-  - Mobile: look around normally and walk (slower) while aiming.
+  - Modern (default): look around normally while aiming.
+  - Move While Aiming (controller and keyboard settings): whether the d-pad,
+    stick or WASD can walk (slower) while aiming.
   - Aim Down Sights, zoom, aim sensitivity and crosshair/laser while aiming
     are on the same page.
 - **Stick Response**: sensitivity, vertical sensitivity, deadzones, look curve.
