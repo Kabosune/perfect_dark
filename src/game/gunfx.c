@@ -1043,6 +1043,31 @@ bool lasersightExists(s32 id, s32 *index)
 	return true;
 }
 
+#ifndef PLATFORM_N64
+/**
+ * [weightyaim] Cheap value noise for the laser's shimmer: a new random value
+ * every few frames, smoothly blended, so it crawls rather than strobes.
+ * Returns 0..1.
+ */
+static f32 lasersightNoise(f32 t, u32 seed)
+{
+	const s32 i = (s32)t; // t is never negative
+	const f32 f = t - i;
+	u32 a = (u32)i * 747796405u + seed * 2891336453u;
+	u32 b = (u32)(i + 1) * 747796405u + seed * 2891336453u;
+	f32 na, nb, u;
+
+	a ^= a >> 16; a *= 0x7feb352du; a ^= a >> 15;
+	b ^= b >> 16; b *= 0x7feb352du; b ^= b >> 15;
+
+	na = (a & 0xffff) / 65535.0f;
+	nb = (b & 0xffff) / 65535.0f;
+	u = f * f * (3.0f - 2.0f * f);
+
+	return na + (nb - na) * u;
+}
+#endif
+
 Gfx *lasersightRenderDot(Gfx *gdl)
 {
 	Mtxf *mtx;
@@ -1117,6 +1142,13 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 			struct coord rot;
 			Col *colours;
 			Vtx *vertices;
+
+#ifndef PLATFORM_N64
+			// [weightyaim] Laser Dot While Aiming can be off while the beam is on
+			if (weightyAimLaserEnhanced() && !weightyAimLaserDotShown()) {
+				continue;
+			}
+#endif
 
 			pos.x = g_LaserSights[i].dotpos.x;
 			pos.y = g_LaserSights[i].dotpos.y;
@@ -1203,22 +1235,26 @@ Gfx *lasersightRenderDot(Gfx *gdl)
 						f00 = 0;
 					}
 
-					// [weightyaim] the enhanced dot is a small bright core inside a soft
-					// red glow, with a faint haze around it that breathes a little
+					// [weightyaim] the enhanced dot is a small bright core in a faint red
+					// glow, with a noisy shimmer: brightness and size crawl randomly
 					s32 numdotpasses = 1;
-					f32 dotscale[4] = { 1.0f, 0.f, 0.f, 0.f };
-					u32 dotcol[4] = { 0xff00005f, 0, 0, 0 };
+					f32 dotscale[3] = { 1.0f, 0.f, 0.f };
+					u32 dotcol[3] = { 0xff00005f, 0, 0 };
 
 #ifndef PLATFORM_N64
 					if (weightyAimLaserEnhanced()) {
-						const f32 flicker = 0.9f + 0.1f * sinf(g_Vars.lvframenum * 1.7f);
-						const f32 haze = 1.0f + 0.12f * sinf(g_Vars.lvframenum * 0.23f);
+						const f32 t = g_Vars.lvframenum * 0.35f;
+						const f32 n1 = lasersightNoise(t, 1);
+						const f32 n2 = lasersightNoise(t * 1.9f, 2);
+						const f32 n3 = lasersightNoise(t * 3.7f, 3);
 
-						numdotpasses = 4;
-						dotscale[0] = 8.5f * haze; dotcol[0] = 0xff181800 | (u32)(0x26 * flicker);
-						dotscale[1] = 4.5f;        dotcol[1] = 0xff141400 | (u32)(0x58 * flicker);
-						dotscale[2] = 2.2f;        dotcol[2] = 0xff303000 | (u32)(0xb8 * flicker);
-						dotscale[3] = 1.0f;        dotcol[3] = 0xffe0e000 | 0xff;
+						numdotpasses = 3;
+						dotscale[0] = 3.6f * (0.8f + 0.4f * n1);
+						dotcol[0] = 0xff101000 | (u32)(0x16 + 0x22 * n2);
+						dotscale[1] = 1.9f * (0.9f + 0.2f * n2);
+						dotcol[1] = 0xff282800 | (u32)(0x60 + 0x40 * n3);
+						dotscale[2] = 1.0f * (0.92f + 0.16f * n3);
+						dotcol[2] = 0xffd8d800 | (u32)(0xc8 + 0x37 * n1);
 					}
 #endif
 
@@ -1337,6 +1373,13 @@ Gfx *lasersightRenderBeam(Gfx *gdl)
 			Vtx *vertices;
 			struct coord sp98;
 
+#ifndef PLATFORM_N64
+			// [weightyaim] Laser Beam While Aiming can be off while the dot is on
+			if (weightyAimLaserEnhanced() && !weightyAimLaserBeamShown()) {
+				continue;
+			}
+#endif
+
 			sp98.x = g_LaserSights[i].beamnear.x;
 			sp98.y = g_LaserSights[i].beamnear.y;
 			sp98.z = g_LaserSights[i].beamnear.z;
@@ -1400,7 +1443,7 @@ Gfx *lasersightRenderBeam(Gfx *gdl)
 #ifndef PLATFORM_N64
 			if (weightyAimLaserEnhanced()) {
 				const f32 flicker = 0.9f + 0.07f * sinf(g_Vars.lvframenum * 2.3f) + 0.03f * sinf(g_Vars.lvframenum * 5.1f);
-				const f32 haze = 1.0f + 0.15f * sinf(g_Vars.lvframenum * 0.19f + i);
+				const f32 haze = 0.75f + 0.5f * lasersightNoise(g_Vars.lvframenum * 0.3f, 7 + i);
 				const u32 a0 = (u32)(0x1c * flicker * haze), a1 = (u32)(0x40 * flicker);
 				const u32 a2 = (u32)(0x98 * flicker), a3 = (u32)(0xe8 * flicker);
 

@@ -1271,9 +1271,10 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 				}
 
 #ifndef PLATFORM_N64
-				// [weightyaim] aim down sights on the move, instead of the original
-				// stand still and lean with the move stick
-				const bool adsmove = controlmode == CONTROLMODE_PC && weightyAimAdsMoveWanted();
+				// [weightyaim] Mobile aim mode: walk while aiming, instead of the original
+				// stand still and lean with the move stick (scoped guns that zoom with
+				// the move stick keep the original behaviour)
+				const bool adsmove = controlmode == CONTROLMODE_PC && !canmanualzoom && weightyAimAdsMoveWanted();
 #else
 				const bool adsmove = false;
 #endif
@@ -1743,7 +1744,9 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 					if (allowc1buttons && (controlmode != CONTROLMODE_PC || (PLAYER_EXTCFG().crouchmode & CROUCHMODE_ANALOG))) {
 #endif
 						for (i = 0; i < numsamples; i++) {
-							if (!canmanualzoom && aimonhist[i]) {
+							// [weightyaim] walking while aiming: the move stick and keys move you,
+							// they don't crouch (the crouch buttons still do)
+							if (!canmanualzoom && aimonhist[i] && !adsmove) {
 								bool goUp = joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
 								if (controlmode == CONTROLMODE_PC) {
 									goUp = goUp || ((joyGetRStickYOnSample(i, contpad1) > 30 && joyGetRStickYOnSampleIndex(i, contpad1) <= 30));

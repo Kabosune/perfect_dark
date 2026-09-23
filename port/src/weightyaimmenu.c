@@ -19,7 +19,7 @@
  *   Aim & Camera Feel...   free-aim zone, gun weight, camera lead, sway
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
- *   Aim Down Sights...     raising the gun to your eye when holding aim
+ *   Aim Mode...            what holding aim does: aim mode, aim down sights, crosshair/laser
  *   Gyro Aim...            motion controls (Advanced... inside)
  *   Crosshair / Laser Sight / Laser Dot / Aim Assist / Debug Log / Reset
  *
@@ -321,7 +321,7 @@ struct menuitem g_WeightyAimStickMenuItems[] = {
 	// order must match g_WeightyAimStickSliders
 	WEIGHTYAIM_SLIDER("Inner Deadzone", 40),     // 0 - 40 %
 	WEIGHTYAIM_SLIDER("Outer Deadzone", 100),    // 10 - 100 %
-	WEIGHTYAIM_SLIDER("Max Turn Speed (Sensitivity)", 50), // 0.25 - 2.5x
+	WEIGHTYAIM_SLIDER("Sensitivity", 50),        // 0.25 - 2.5x: look speed at full stick
 	WEIGHTYAIM_SLIDER("Vertical Sensitivity", 40), // 25 - 200 % of the left/right speed
 	WEIGHTYAIM_SLIDER("Custom Curve X1", 20),    // 0 - 1
 	WEIGHTYAIM_SLIDER("Custom Curve Y1", 20),
@@ -402,66 +402,91 @@ struct menudialogdef g_WeightyAimBoostMenuDialog = {
 };
 
 /* ------------------------------------------------------------------------
- * Aim Down Sights
+ * Aim Mode (holding the aim button)
  */
 
 static const struct weightyaimslider g_WeightyAimAdsSliders[] = {
-	{ AIMFIELD(adszoom),   0.05f, 1.f,   "%.2fx",  NULL,   0, 1.f },
-	{ AIMFIELD(adstime),   0.02f, 0.f,   "%.2fs",  "Instant", 0, 0.f },
-	{ AIMFIELD(adssway),   0.05f, 0.f,   "%.0f%%", "None", 1, 0.f },
-	{ AIMFIELD(adszone),   0.05f, 0.f,   "%.0f%%", "None", 1, 0.f },
-	{ AIMFIELD(adsheight), 0.25f, -5.f,  "%+.2f",  NULL,   0, -5.f },
-	{ AIMFIELD(adssens),   0.05f, 0.2f,  "%.0f%%", NULL,   1, 0.2f },
-	{ AIMFIELD(adsmovespeed), 0.05f, 0.2f, "%.0f%%", NULL, 1, 0.2f },
+	{ AIMFIELD(adssens),      0.05f, 0.2f,  "%.0f%%", NULL,      1, 0.2f },
+	{ AIMFIELD(adszone),      0.05f, 0.f,   "%.0f%%", "None",    1, 0.f },
+	{ AIMFIELD(adssway),      0.05f, 0.f,   "%.0f%%", "None",    1, 0.f },
+	{ AIMFIELD(adsmovespeed), 0.05f, 0.2f,  "%.0f%%", NULL,      1, 0.2f },
+	{ AIMFIELD(adszoom),      0.05f, 1.f,   "%.2fx",  NULL,      0, 1.f },
+	{ AIMFIELD(adstime),      0.02f, 0.f,   "%.2fs",  "Instant", 0, 0.f },
+	{ AIMFIELD(adsheight),    0.25f, -10.f, "%+.2f",  NULL,      0, -10.f },
 };
 
-static MenuItemHandlerResult menuhandlerWeightyAimAds(s32 operation, struct menuitem *item, union handlerdata *data)
+static MenuItemHandlerResult menuhandlerWeightyAimMode(s32 operation, struct menuitem *item, union handlerdata *data)
 {
+	static const char *opts[WEIGHTYAIM_NUM_AIMMODES] = {
+		"Classic",
+		"Modern Classic",
+		"Mobile",
+	};
+
 	switch (operation) {
-	case MENUOP_GET:
-		return weightyAimMenuCfg()->ads;
+	case MENUOP_GETOPTIONCOUNT:
+		data->dropdown.value = WEIGHTYAIM_NUM_AIMMODES;
+		break;
+	case MENUOP_GETOPTIONTEXT:
+		return (intptr_t)opts[data->dropdown.value];
 	case MENUOP_SET:
-		weightyAimMenuCfg()->ads = data->checkbox.value;
+		weightyAimMenuCfg()->aimmode = data->dropdown.value;
 		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
+		break;
+	case MENUOP_GETSELECTEDINDEX:
+		data->dropdown.value = weightyAimMenuCfg()->aimmode;
 		break;
 	}
 
 	return 0;
 }
 
-static MenuItemHandlerResult menuhandlerWeightyAimAdsMove(s32 operation, struct menuitem *item, union handlerdata *data)
-{
-	switch (operation) {
-	case MENUOP_GET:
-		return weightyAimMenuCfg()->adsmove;
-	case MENUOP_SET:
-		weightyAimMenuCfg()->adsmove = data->checkbox.value;
-		weightyAimAimSettingsChanged(optionsGetExtMenuPlayer());
-		break;
+#define WEIGHTYAIM_AIM_CHECKBOX_HANDLER(fn, field) \
+	static MenuItemHandlerResult fn(s32 operation, struct menuitem *item, union handlerdata *data) \
+	{ \
+		switch (operation) { \
+		case MENUOP_GET: return weightyAimMenuCfg()->field; \
+		case MENUOP_SET: \
+			weightyAimMenuCfg()->field = data->checkbox.value; \
+			weightyAimAimSettingsChanged(optionsGetExtMenuPlayer()); \
+			break; \
+		} \
+		return 0; \
 	}
 
-	return 0;
-}
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAds, ads)
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimCrosshair, aimcrosshair)
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserDot, aimlaserdot)
+WEIGHTYAIM_AIM_CHECKBOX_HANDLER(menuhandlerWeightyAimAimLaserBeam, aimlaserbeam)
 
+/*
+ * Aim Mode:
+ *   Classic         the game's own aiming: the camera stops, the stick moves the crosshair
+ *   Modern Classic  keep looking around with Weighty Aim while aiming, standing still
+ *   Mobile          the same, and you can walk (slower) while aiming
+ * Aim Down Sights brings the gun in and zooms, in any of them.
+ */
 struct menuitem g_WeightyAimAdsMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Mode", 0, menuhandlerWeightyAimMode },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
-	// off: stand still while aiming, like the original game
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Move While Aiming", 0, menuhandlerWeightyAimAdsMove },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Beam While Aiming", 0, menuhandlerWeightyAimAimLaserBeam },
 	// order must match g_WeightyAimAdsSliders
-	WEIGHTYAIM_SLIDER("Zoom", 40),                  // 1 - 3x
-	WEIGHTYAIM_SLIDER("Raise Time", 25),            // 0 - 0.5 s
-	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),     // 0 - 100 %
-	WEIGHTYAIM_SLIDER("Free-Aim While Aiming", 20), // 0 - 100 %
-	WEIGHTYAIM_SLIDER("Sight Height", 40),          // -5 - +5
-	WEIGHTYAIM_SLIDER("Sensitivity While Aiming", 16), // 20 - 100 %
-	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),  // 20 - 100 %
+	WEIGHTYAIM_SLIDER("Aim Sensitivity", 16),           // 20 - 100 %
+	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the crosshair keeps moving freely
+	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),         // 0 - 100 %
+	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 % (Mobile)
+	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x (Aim Down Sights)
+	WEIGHTYAIM_SLIDER("Sights Raise Time", 25),         // 0 - 0.5 s (Aim Down Sights)
+	WEIGHTYAIM_SLIDER("Sights Gun Height", 60),         // -10 - +5 (Aim Down Sights)
 	WEIGHTYAIM_BACK,
 };
 
 struct menudialogdef g_WeightyAimAdsMenuDialog = {
 	MENUDIALOGTYPE_DEFAULT,
-	(uintptr_t)"Aim Down Sights",
+	(uintptr_t)"Aim Mode",
 	g_WeightyAimAdsMenuItems,
 	NULL,
 	MENUDIALOGFLAG_LITERAL_TEXT,
@@ -644,7 +669,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
 	{ g_WeightyAimMenuItems,     11, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
-	{ g_WeightyAimAdsMenuItems,   3, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimAdsMenuItems,   6, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
@@ -727,8 +752,8 @@ static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct m
 static MenuItemHandlerResult menuhandlerWeightyAimCrosshair(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	static const char *opts[] = {
-		"Always",
-		"Only When Aiming",
+		"On",
+		"Off",
 	};
 
 	switch (operation) {
@@ -808,11 +833,11 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Stick Response...\n", g_WeightyAimStickMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Turn Boost...\n", g_WeightyAimBoostMenuDialog),
-	WEIGHTYAIM_SUBPAGE("Aim Down Sights...\n", g_WeightyAimAdsMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Aim Mode...\n", g_WeightyAimAdsMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Gyro Aim...\n", g_WeightyAimGyroMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair", 0, menuhandlerWeightyAimCrosshair },
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Sight", 0, menuhandlerWeightyAimLaser },
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Crosshair", 0, menuhandlerWeightyAimCrosshair },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Sight", 0, menuhandlerWeightyAimLaser },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot Stays While Firing", 0, menuhandlerWeightyAimLaserPersist },
 	WEIGHTYAIM_SLIDER("Aim Assist", 20),     // 0 - 100 % of the game's own
 

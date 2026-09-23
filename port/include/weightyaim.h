@@ -29,8 +29,13 @@
 #define WEIGHTYAIM_NUM_CUSTOM     3
 #define WEIGHTYAIM_IS_CUSTOM(p)   ((p) >= WEIGHTYAIM_PRESET_CUSTOM1)
 
-#define WEIGHTYAIM_CROSSHAIR_ALWAYS   0
-#define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing, shown when holding aim
+#define WEIGHTYAIM_CROSSHAIR_ALWAYS   0 // shown while hip-firing ("On")
+#define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing ("Off"); aiming has its own setting
+
+#define WEIGHTYAIM_AIMMODE_CLASSIC 0 // the game's own aim mode: camera stops, the stick moves the crosshair
+#define WEIGHTYAIM_AIMMODE_MODERN  1 // Weighty Aim's look controls while aiming, standing still
+#define WEIGHTYAIM_AIMMODE_MOBILE  2 // Weighty Aim's look controls while aiming, and you can walk
+#define WEIGHTYAIM_NUM_AIMMODES    3
 
 struct weightyaimcfg {
 	s32 preset;          // WEIGHTYAIM_PRESET_*; CLASSIC turns the mod off
@@ -47,19 +52,23 @@ struct weightyaimcfg {
 	f32 edgesmoothing;   // seconds for the camera to ease in when the gun pushes past the edge (0 = rigid)
 	f32 camerasway;      // idle breathing sway of the camera, degrees
 	f32 walksway;        // extra camera sway while moving at full speed, degrees
-	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*
-	s32 laser;           // RE4-style laser sight on every gun: glowing beam to a bright dot
+	s32 crosshair;       // WEIGHTYAIM_CROSSHAIR_*, while not aiming
+	s32 laser;           // RE4-style laser sight on every gun (beam and dot), while not aiming
 	s32 laserpersist;    // keep the laser dot on screen while firing (it no longer blinks out after each shot)
 
-	// aim down sights (holding the aim button)
-	s32 ads;             // 1 = raise the gun to your eye, 0 = the game's own aim mode
-	f32 adszoom;         // zoom while aiming (1 = none)
-	f32 adstime;         // seconds to raise or lower the gun
+	// holding the aim button
+	s32 aimmode;         // WEIGHTYAIM_AIMMODE_*
+	s32 aimcrosshair;    // crosshair while aiming
+	s32 aimlaserdot;     // laser dot while aiming
+	s32 aimlaserbeam;    // laser beam while aiming
+	s32 ads;             // aim down sights: bring the gun up and zoom in while aiming (any aim mode)
+	f32 adszoom;         // zoom while aiming down sights (1 = none)
+	f32 adstime;         // seconds to bring the gun up or down
 	f32 adssway;         // share of the sway kept while aiming (0..1)
-	f32 adszone;         // share of the free-aim zone kept while aiming (0..1)
-	f32 adsheight;       // fine-tune how high the gun sits when aimed (screen units, + = higher)
-	s32 adsmove;         // 1 = keep walking (slower) while aiming, 0 = stand still like the original game
-	f32 adsmovespeed;    // walking speed while aiming, share of normal (0..1)
+	f32 adszone;         // share of the aim feel (free-aim zone, gun weight) kept while aiming (0..1);
+	                     // at 1 the crosshair moves exactly like hip-fire, at 0 it's pulled to the centre
+	f32 adsheight;       // how high the gun sits when aiming down sights (screen units, + = higher)
+	f32 adsmovespeed;    // Mobile aim mode: walking speed while aiming, share of normal (0..1)
 	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
 };
 
@@ -191,7 +200,7 @@ bool weightyAimPrepareMove(struct movedata *movedata);
 
 /*
  * Hook 1d (bondmove.c, PC control style input): true if holding aim should
- * aim down sights on the move instead of the original stand-still-and-lean.
+ * let you walk (Mobile aim mode) instead of the original stand-still-and-lean.
  */
 bool weightyAimAdsMoveWanted(void);
 
@@ -199,6 +208,13 @@ bool weightyAimAdsMoveWanted(void);
  * Hook 1e (bondwalk.c, after the crouch speed): slow walking down while aiming.
  */
 void weightyAimApplyMoveSpeed(void);
+
+/*
+ * Hook 5b (gunfx.c): whether the laser's beam and dot are shown right now
+ * (hip-fire uses Laser Sight, aiming uses the two while-aiming settings).
+ */
+bool weightyAimLaserBeamShown(void);
+bool weightyAimLaserDotShown(void);
 
 /*
  * Hook 1b (bondmove.c, zoom): the field of view to zoom to this frame.

@@ -3097,9 +3097,10 @@ extern void optionsOpenWeightyAimMenu(s32 player);
 static MenuItemHandlerResult menuhandlerOpenWeightyAim(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	if (operation == MENUOP_SET) {
-		u32 mpchrnum = (g_Vars.coopplayernum >= 0 || g_Vars.antiplayernum >= 0)
-			? g_Vars.currentplayerstats->mpindex : item->param3;
-		optionsOpenWeightyAimMenu(mpchrnum & 3);
+		// solo: player 1's settings; co-op and counter-op: whoever opened the menu
+		const s32 player = (g_Vars.coopplayernum >= 0 || g_Vars.antiplayernum >= 0)
+			? (g_Vars.currentplayerstats->mpindex & 3) : 0;
+		optionsOpenWeightyAimMenu(player);
 	}
 
 	return 0;
@@ -3161,7 +3162,7 @@ struct menuitem g_MissionControlOptionsMenuItems[] = {
 		0,
 		MENUITEMFLAG_LITERAL_TEXT,
 		(uintptr_t)"Weighty Aim Settings...\n",
-		0x00000004,
+		0, // must stay 0: with literal text, param3 is read as extra text to show
 		menuhandlerOpenWeightyAim,
 	},
 #endif
@@ -3249,7 +3250,7 @@ struct menuitem g_CiControlOptionsMenuItems2[] = {
 		0,
 		MENUITEMFLAG_LITERAL_TEXT,
 		(uintptr_t)"Weighty Aim Settings...\n",
-		0x00000004,
+		0, // must stay 0: with literal text, param3 is read as extra text to show
 		menuhandlerOpenWeightyAim,
 	},
 #endif
@@ -3337,7 +3338,7 @@ struct menuitem g_CiControlOptionsMenuItems[] = {
 		0,
 		MENUITEMFLAG_LITERAL_TEXT,
 		(uintptr_t)"Weighty Aim Settings...\n",
-		0x00000004,
+		0, // must stay 0: with literal text, param3 is read as extra text to show
 		menuhandlerOpenWeightyAim,
 	},
 #endif
