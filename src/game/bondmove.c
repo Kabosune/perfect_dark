@@ -1748,10 +1748,11 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 					if (allowc1buttons && (controlmode != CONTROLMODE_PC || (PLAYER_EXTCFG().crouchmode & CROUCHMODE_ANALOG))) {
 #endif
 						for (i = 0; i < numsamples; i++) {
-							// [weightyaim] walking while aiming: the move stick and keys move you,
+							// [weightyaim] Mobile: the move stick and keys move you while aiming,
 							// they don't crouch (the crouch buttons still do)
-							if (!canmanualzoom && aimonhist[i] && !adsmove && !adsdpad) {
-								bool goUp = joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
+							if (!canmanualzoom && aimonhist[i] && !adsmove) {
+								// [weightyaim] Modern Classic: d-pad / WASD step while aiming, so only the stick crouches
+								bool goUp = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sumask);
 								if (controlmode == CONTROLMODE_PC) {
 									goUp = goUp || ((joyGetRStickYOnSample(i, contpad1) > 30 && joyGetRStickYOnSampleIndex(i, contpad1) <= 30));
 								}
@@ -1765,7 +1766,7 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 									g_Vars.currentplayer->aimtaptime = -1;
 								}
 
-								bool goDn = joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sdmask);
+								bool goDn = !adsdpad && joyGetButtonsPressedOnSample(i, contpad1, c1allowedbuttons & sdmask);
 								if (controlmode == CONTROLMODE_PC) {
 									goDn = goDn || ((joyGetRStickYOnSample(i, contpad1) < -30 && joyGetRStickYOnSampleIndex(i, contpad1) >= -30));
 								}
