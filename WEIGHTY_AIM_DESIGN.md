@@ -168,6 +168,18 @@ from Control Options (`mainmenu.c`) and from shortcuts in `optionsmenu.c`.
   `gDPFillRectangleScaled(gdl++, x1, y1, x2, y2)`; see
   `weightyAimGraphRect()`. This is the pattern to copy for any other custom
   widget or minigame drawn inside a menu.
+- **Interactive example: Tetris** (`port/src/tetrismenu.c`, Options →
+  Extended → Tetris). Not part of Weighty Aim; it only reuses the hook. The
+  dialog is a single `MENUITEMTYPE_CUSTOMRENDER` item plus a dialog handler.
+  On `MENUOP_TICK` the handler checks that its dialog is
+  `g_Menus[g_MpPlayerNum].curdialog`, reads the pads itself
+  (`menuGetContPads()` + `joyGetButtons()` / stick), then zeroes
+  `data->dialog2.inputs` (leftright, updown, select, shoulder…) so the menu
+  doesn't also navigate. It leaves `inputs->back` alone so B / Esc still
+  closes the dialog. Use `g_Vars.diffframe60freal` for timing. State is kept
+  per `g_MpPlayerNum`. With the default PC binds a pad's B button is also
+  `L_JPAD`, so mask that out while B / `BUTTON_UI_CANCEL` is held. The best
+  score is registered as `Game.TetrisHighScore` in `pd.ini`.
 
 ---
 

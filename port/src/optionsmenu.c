@@ -27,6 +27,9 @@ s32 optionsGetExtMenuPlayer(void)
 // [weightyaim] the Weighty Aim page (defined in weightyaimmenu.c)
 extern struct menudialogdef g_WeightyAimMenuDialog;
 
+// [tetris] the Tetris minigame (defined in tetrismenu.c)
+extern struct menudialogdef g_TetrisMenuDialog;
+
 // [weightyaim] jump straight to a player's Weighty Aim page, used by the
 // shortcuts on the mouse, controller, stick and in-game control options pages
 void optionsOpenWeightyAimMenu(s32 player)
@@ -2067,6 +2070,15 @@ struct menuitem g_ExtendedMenuItems[] = {
 		(uintptr_t)"Key Bindings\n",
 		0,
 		menuhandlerOpenBindsMenu,
+	},
+	{
+		// [tetris]
+		MENUITEMTYPE_SELECTABLE,
+		0,
+		MENUITEMFLAG_SELECTABLE_OPENSDIALOG | MENUITEMFLAG_LITERAL_TEXT,
+		(uintptr_t)"Tetris\n",
+		0,
+		(void *)&g_TetrisMenuDialog,
 	},
 	{
 		MENUITEMTYPE_SEPARATOR,
