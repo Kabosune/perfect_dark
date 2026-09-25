@@ -61,6 +61,7 @@ enum {
 #define TB_CCW     0x0020
 #define TB_HOLD    0x0040
 #define TB_CONFIRM 0x0080
+#define TB_START   0x0100
 
 struct tetris {
 	u8 board[TET_H][TET_W]; // 0 = empty, else piece + 1
@@ -519,7 +520,8 @@ static u32 tetrisReadButtons(void)
 	if (raw & (A_BUTTON | Z_TRIG))                     out |= TB_CW;
 	if (raw & R_TRIG)                                  out |= TB_CCW;
 	if (raw & L_TRIG)                                  out |= TB_HOLD;
-	if (raw & (A_BUTTON | Z_TRIG | START_BUTTON))      out |= TB_CONFIRM;
+	if (raw & (A_BUTTON | Z_TRIG))                     out |= TB_CONFIRM;
+	if (raw & START_BUTTON)                            out |= TB_START;
 
 #ifndef PLATFORM_N64
 	if (raw & X_BUTTON)         out |= TB_CCW;
@@ -535,7 +537,14 @@ static void tetrisTick(struct tetris *t, u32 held, u32 pressed, f32 dt)
 	switch (t->state) {
 	case TETSTATE_TITLE:
 	case TETSTATE_PAUSED:
-		if (pressed & TB_CONFIRM) {
+		// Start on the pause screen throws the current game away
+		if (t->state == TETSTATE_PAUSED && (pressed & TB_START)) {
+			tetrisNewGame(t);
+			menuPlaySound(MENUSOUND_SELECT);
+			return;
+		}
+
+		if (pressed & (TB_CONFIRM | TB_START)) {
 			if (t->state == TETSTATE_TITLE) {
 				tetrisNewGame(t);
 			} else {
@@ -548,7 +557,7 @@ static void tetrisTick(struct tetris *t, u32 held, u32 pressed, f32 dt)
 	case TETSTATE_GAMEOVER:
 		t->statetimer += dt;
 
-		if (t->statetimer > 40.f && (pressed & TB_CONFIRM)) {
+		if (t->statetimer > 40.f && (pressed & (TB_CONFIRM | TB_START))) {
 			tetrisNewGame(t);
 			menuPlaySound(MENUSOUND_SELECT);
 		}
@@ -565,6 +574,13 @@ static void tetrisTick(struct tetris *t, u32 held, u32 pressed, f32 dt)
 	}
 
 	// playing
+	if (pressed & TB_START) {
+		t->state = TETSTATE_PAUSED;
+		t->dasdir = 0;
+		menuPlaySound(MENUSOUND_SELECT);
+		return;
+	}
+
 	if (pressed & TB_HOLD) {
 		tetrisHold(t);
 
@@ -732,6 +748,7 @@ static MenuDialogHandlerResult menudialogTetris(s32 operation, struct menudialog
 		inputs->yaxis = 0;
 		inputs->select = 0;
 		inputs->shoulder = 0;
+		inputs->start = 0; // otherwise Start also closes the pause menu
 #ifndef PLATFORM_N64
 		inputs->mousescroll = 0;
 #endif
@@ -987,11 +1004,11 @@ static Gfx *tetrisRender(Gfx *gdl, struct menurendercontext *context)
 		y += 9;
 		gdl = tetrisText(gdl, cx, y, cw, "A/Z: Rotate     R/X: Rotate Back", labelcolour, true);
 		y += 9;
-		gdl = tetrisText(gdl, cx, y, cw, "L/Y: Hold     B: Leave", labelcolour, true);
+		gdl = tetrisText(gdl, cx, y, cw, "L/Y: Hold   Start: Pause   B: Leave", labelcolour, true);
 		y += 14;
 
 		if (blink && (t->state != TETSTATE_GAMEOVER || t->statetimer > 40.f)) {
-			const char *prompt = t->state == TETSTATE_PAUSED ? "Press A to Resume"
+			const char *prompt = t->state == TETSTATE_PAUSED ? "A: Resume     Start: Restart"
 				: t->state == TETSTATE_GAMEOVER ? "Press A to Play Again"
 				: "Press A to Start";
 			gdl = tetrisText(gdl, cx, y, cw, (char *)prompt, valuecolour, false);
