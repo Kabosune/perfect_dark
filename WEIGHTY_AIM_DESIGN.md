@@ -327,7 +327,8 @@ from Control Options (`mainmenu.c`) and from shortcuts in `optionsmenu.c`.
 - This mod is developed with AI assistance (Claude Opus 5.5), credited in
   the README. Commits made with AI help end with:
   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-  Don't add session or conversation links to commit messages.
+- Don't add chatbot session or conversation links to commit messages.
+  I especially can't because too many lewd things happening in there ^-^
 - Don't rewrite history, amend or re-author the owner's commits.
 - Prefer small, targeted edits. When the owner says "no testing" or "just
   compile", do exactly that.
