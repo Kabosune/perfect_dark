@@ -76,7 +76,8 @@ struct weightyaimcfg {
 	f32 adstime;         // seconds to bring the gun up or down
 	f32 adssway;         // share of the sway kept while aiming (0..1)
 	f32 adszone;         // share of the aim feel (free-aim zone, gun weight) kept while aiming (0..1);
-	                     // at 1 the crosshair moves exactly like hip-fire, at 0 it's pulled to the centre
+	                     // at 1 the crosshair moves exactly like hip-fire, at 0 it's pulled to the centre,
+	                     // above 1 (up to 2) the aiming feel is exaggerated: bigger zone, heavier gun
 	f32 adsheight;       // how high the gun sits when aiming down sights (screen units, + = higher)
 	f32 adsmovespeed;    // Move While Aiming: walking speed while aiming, share of normal (0..1)
 	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
@@ -89,6 +90,8 @@ struct weightyaimcfg {
 	s32 edgegyro;        // ... the gyro
 	s32 edgestick;       // ... the stick
 	s32 reticleprofile;  // 0 = your normal reticle settings, 1 = Arcade's own reticle settings
+	f32 reticlespeed;    // Free-Aim Reticle Speed: how far the reticle moves inside the zone per degree of input
+	                     // (1 = 1:1 with the camera; other values break the 1:1 on purpose, 0.25..3)
 };
 
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the original game on an N64-range stick: squared, full speed near full tilt (ignores the deadzones below)

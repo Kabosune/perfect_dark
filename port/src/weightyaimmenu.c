@@ -101,6 +101,7 @@ static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL,  0 },
 	{ AIMFIELD(edgeturnspeed), 10.f,  0.f,  "%.0f deg/s", "Off", 0 },
 	// advanced
+	{ AIMFIELD(reticlespeed),  0.05f, 0.25f, "%.0f%%",  NULL,  1, 0.25f },
 	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
 	{ AIMFIELD(recentersmooth), 0.05f, 0.f, "%.2fs",    "Off", 0 },
 	{ AIMFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL,  0 },
@@ -158,6 +159,7 @@ struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Gun Response", 40),          // 1 - 20 Hz
 	WEIGHTYAIM_SLIDER("Edge Auto-Turn", 18),        // 0 - 180 deg/s at the edge (Arcade)
 	// advanced (hidden unless "Show Advanced Feel" is ticked)
+	WEIGHTYAIM_SLIDER("Free-Aim Reticle Speed", 55), // 25 - 300 %: 100 % keeps aim 1:1 with the camera
 	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
 	WEIGHTYAIM_SLIDER("Catch-Up Smoothing", 20),    // 0 - 1 s: eases the camera into re-centring
 	WEIGHTYAIM_SLIDER("Gun Damping", 30),           // 0.1 - 1.5
@@ -598,7 +600,7 @@ struct menuitem g_WeightyAimAdsMenuItems[] = {
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Beam While Aiming", 0, menuhandlerWeightyAimAimLaserBeam },
 	// order must match g_WeightyAimAdsSliders
 	WEIGHTYAIM_SLIDER("Aim Sensitivity", 16),           // 20 - 100 %
-	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the reticle keeps moving freely
+	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 40),     // 0 - 200 %: how much the reticle keeps moving freely (above 100 % exaggerates it)
 	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),         // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 %
 	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x, any aiming

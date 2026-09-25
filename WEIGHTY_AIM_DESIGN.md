@@ -140,6 +140,12 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   port's own reticle settings (Size, Colour & Opacity, Colour by Health),
   shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
   keys still say crosshair.
+- **Free-Aim Reticle Speed** (`reticlespeed`, advanced, 25-300%, default
+  100%): scales how far the reticle moves inside the zone per degree of
+  input, deliberately breaking the 1:1 rule for an older, uneven feel.
+  Overflow past the edge is divided by it, so edge turning stays at input
+  speed. **Aim Feel While Aiming** (`adszone`) now goes to 200%: above 100%
+  it exaggerates (bigger zone, less camera share, more drag, heavier gun).
 - **Edge Auto-Turn** (`edgeturnspeed`, 0 = off; on only in Arcade): while
   the reticle rests in the outer band of the zone (`edgeband`), the view keeps
   turning on its own, eased by smoothstep across the band, after a 0.15s

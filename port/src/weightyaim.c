@@ -291,6 +291,7 @@ const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 // keeping the free-aim crosshair that isn't locked to the centre.
 static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.preset = WEIGHTYAIM_PRESET_WEIGHTY,
+	.reticlespeed = 1.f,
 	.edgeturnspeed = 0.f,
 	.edgeband = 0.2f,
 	.edgeinfluence = 0.25f,
@@ -336,6 +337,7 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 // (the gun itself is kept a little steadier so it isn't too shaky)
 static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.preset = WEIGHTYAIM_PRESET_IMMERSIVE,
+	.reticlespeed = 1.f,
 	.edgeturnspeed = 0.f,
 	.edgeband = 0.2f,
 	.edgeinfluence = 0.25f,
@@ -381,6 +383,7 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 // follows the stick directly, no gun lag, no sway.
 static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.preset = WEIGHTYAIM_PRESET_BORING,
+	.reticlespeed = 1.f,
 	.edgeturnspeed = 0.f,
 	.edgeband = 0.2f,
 	.edgeinfluence = 0.25f,
@@ -428,6 +431,7 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 // gyro). Has its own reticle settings: smooth, a size bigger, more opaque.
 static const struct weightyaimcfg g_WeightyAimPresetArcade = {
 	.preset = WEIGHTYAIM_PRESET_ARCADE,
+	.reticlespeed = 1.f,
 	.deadzonex = 28.f,
 	.deadzoney = 18.f,
 	.camerashare = 0.f,
@@ -1041,13 +1045,15 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		// sway calms down and the gun steadies. Aim Feel While Aiming (adszone)
 		// sets how much of the hip-fire feel is kept: at 1 aiming feels the same.
 		const f32 ads = cfg->aimmode != WEIGHTYAIM_AIMMODE_CLASSIC ? weightyAimAdsAmount(st) : 0.f;
-		const f32 align = clampf(cfg->adszone, 0.f, 1.f);
+		const f32 align = clampf(cfg->adszone, 0.f, 2.f);
 		struct weightyaimcfg effcfg = *cfg;
 		struct weightyaimcfg *ec = &effcfg;
 
-		ec->deadzonex *= 1.f + (clampf(cfg->adszone, 0.f, 1.f) - 1.f) * ads;
-		ec->deadzoney *= 1.f + (clampf(cfg->adszone, 0.f, 1.f) - 1.f) * ads;
-		ec->camerashare += (1.f - ec->camerashare) * ads * (1.f - clampf(cfg->adszone, 0.f, 1.f));
+		// Aim Feel While Aiming above 100% (up to 200%) exaggerates it instead:
+		// a bigger zone, less camera share, more drag and a heavier gun
+		ec->deadzonex *= 1.f + (align - 1.f) * ads;
+		ec->deadzoney *= 1.f + (align - 1.f) * ads;
+		ec->camerashare += (1.f - ec->camerashare) * ads * (1.f - align);
 		ec->camerasway *= 1.f + (clampf(cfg->adssway, 0.f, 1.f) - 1.f) * ads;
 		ec->walksway *= 1.f + (clampf(cfg->adssway, 0.f, 1.f) - 1.f) * ads;
 		ec->turndrag *= 1.f - 0.6f * ads * (1.f - align);
@@ -1080,6 +1086,11 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		//    The two always add up to exactly the input, so aim speed never changes.
 		const f32 share = clampf(ec->camerashare, 0.f, 1.f);
 		const f32 drag = clampf(ec->turndrag, 0.f, 1.f);
+		// Free-Aim Reticle Speed: 1 keeps the reticle 1:1 with the camera; other
+		// values let it move faster or slower than your input inside the zone,
+		// for an older, uneven aiming feel. Turning past the edge stays at your
+		// input's speed.
+		const f32 rs = ec->reticlespeed > 0.001f ? clampf(ec->reticlespeed, 0.25f, 3.f) : 1.f;
 
 		reqlen = bc_sqrtf(reqdeg[0] * reqdeg[0] + reqdeg[1] * reqdeg[1]);
 
@@ -1089,7 +1100,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 				camdeg[i] += direct;
 				st->display[i] -= direct * drag; // the gun lags a touch behind the turn
-				st->target[i] += reqdeg[i] - direct;
+				st->target[i] += (reqdeg[i] - direct) * rs;
 			}
 
 			// 2. Whatever pushes the gun past the edge of the zone goes into the
@@ -1102,8 +1113,8 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 				const f32 scale = 1.f / bc_sqrtf(ellipse);
 				const f32 keep = autoedge ? clampf(ec->edgeinfluence, 0.f, 1.f) : 1.f;
 
-				st->over[0] += (st->target[0] - st->target[0] * scale) * keep;
-				st->over[1] += (st->target[1] - st->target[1] * scale) * keep;
+				st->over[0] += (st->target[0] - st->target[0] * scale) * keep / rs;
+				st->over[1] += (st->target[1] - st->target[1] * scale) * keep / rs;
 				st->target[0] *= scale;
 				st->target[1] *= scale;
 			}
@@ -2142,7 +2153,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_FLOAT("AdsZoom",       adszoom,       1.f, 3.f),
 	WA_FLOAT("AdsTime",       adstime,       0.f, 1.f),
 	WA_FLOAT("AdsSway",       adssway,       0.f, 1.f),
-	WA_FLOAT("AdsZone",       adszone,       0.f, 1.f),
+	WA_FLOAT("AdsZone",       adszone,       0.f, 2.f),
 	WA_FLOAT("AdsHeight",     adsheight,     -10.f, 10.f),
 	WA_FLOAT("AdsMoveSpeed",  adsmovespeed,  0.1f, 1.f),
 	WA_FLOAT("AdsSensitivity", adssens,      0.1f, 1.f),
@@ -2154,6 +2165,7 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_INT  ("EdgeGyro",      edgegyro,      0, 1),
 	WA_INT  ("EdgeStick",     edgestick,     0, 1),
 	WA_INT  ("ReticleProfile", reticleprofile, 0, 1),
+	WA_FLOAT("ReticleSpeed",  reticlespeed,  0.25f, 3.f),
 };
 
 static void weightyAimRegisterCfg(const char *prefix, struct weightyaimcfg *cfg)
