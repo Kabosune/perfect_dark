@@ -210,6 +210,8 @@ s32 g_WeightyAimDebugLog = 0;
 s32 g_WeightyAimDebugPattern = 0;
 
 #define WEIGHTYAIM_LEAD_EASE_IN 0.3f // seconds for Camera Lead to fade back in after an edge turn
+#define WEIGHTYAIM_LEAD_FULL_INPUT 0.5f // look speed (fraction of full stick) that gives full Camera Lead
+#define WEIGHTYAIM_LEAD_INPUT_SMOOTH 0.1f // seconds: Camera Lead follows your input with a short tail
 
 struct weightyaimstate {
 	f32 target[2];   // where the gun wants to point (yaw, pitch), degrees from camera centre
@@ -218,6 +220,7 @@ struct weightyaimstate {
 	f32 over[2];     // how far the gun is pushed past the edge of the zone, degrees (drains into camera turn)
 	f32 idletime;    // seconds since the last look input
 	f32 leadramp;    // 0..1: Camera Lead eases back in after an edge turn instead of kicking in at full strength
+	f32 leadinput;   // 0..1: how hard you're aiming (smoothed); Camera Lead scales with it
 	f32 boostheld;   // seconds the stick has been held past the boost threshold
 	f32 boostlevel;  // current turn boost, 0..1
 	bool aiming;     // aim button held and Weighty Aim drives the look (Modern), this frame
@@ -738,6 +741,7 @@ static void weightyAimResetState(struct weightyaimstate *st)
 	st->assist[0] = st->assist[1] = 0.f;
 	st->idletime = 0.f;
 	st->leadramp = 0.f;
+	st->leadinput = 0.f;
 	st->sway[0] = st->sway[1] = 0.f;
 }
 
@@ -975,6 +979,17 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			// (where it's strongest) felt like a sudden snap back toward the centre.
 			st->leadramp = edgeturn ? 0.f : clampf(st->leadramp + dtsec / WEIGHTYAIM_LEAD_EASE_IN, 0.f, 1.f);
 
+			// Lead also scales with how hard you're aiming, so a small correction at
+			// the edge barely pulls the camera while a big sweep drags it along.
+			// Measured against full-stick speed so mouse and gyro count the same way.
+			{
+				const f32 fullspeed = fovscale * DEG_PER_SPEED_TICK * dt60;
+				const f32 input = fullspeed > 0.0001f
+					? clampf(reqlen / (fullspeed * WEIGHTYAIM_LEAD_FULL_INPUT), 0.f, 1.f) : 0.f;
+
+				st->leadinput += (input - st->leadinput) * (1.f - bc_expf(-dtsec / WEIGHTYAIM_LEAD_INPUT_SMOOTH));
+			}
+
 			if (edgeturn) {
 				// already turning from the edge; leading as well would slow that turn down
 				rate = 0.f;
@@ -986,9 +1001,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 					f32 e = clampf((st->idletime - ec->recenterdelay) / ec->recentersmooth, 0.f, 1.f);
 					rate *= e * e * (3.f - 2.f * e);
 				}
-			} else if (reqlen > 0.0001f || st->idletime > 0.f) {
+			} else {
 				const f32 r = st->leadramp;
-				rate = ec->cameralead * edgeness * r * r * (3.f - 2.f * r);
+				rate = ec->cameralead * edgeness * st->leadinput * r * r * (3.f - 2.f * r);
 			}
 
 			if (rate > 0.f) {

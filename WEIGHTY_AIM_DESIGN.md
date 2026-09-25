@@ -92,7 +92,9 @@ frame with the stick and mouse look input. In order:
 6. **Recentre.** After `recenterdelay` of no input, the aim point returns to
    centre at `recenterspeed`, eased in over `recentersmooth`. Before that,
    while moving, Camera Lead (`cameralead`) pulls the camera toward the aim
-   point, stronger near the zone edge. Lead is off while turning from the
+   point, stronger near the zone edge and scaled by how hard you're aiming
+   (`leadinput`: full at half-stick speed, smoothed over 0.1s), so small
+   corrections barely pull the camera. Lead is off while turning from the
    edge and eases back in over 0.3s (`leadramp`), so it doesn't snap back.
    Lead and Catch-Up both move aim from the crosshair into the camera, so
    the total aim never changes.
