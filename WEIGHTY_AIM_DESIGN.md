@@ -140,6 +140,13 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   port's own reticle settings (Size, Colour & Opacity, Colour by Health),
   shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
   keys still say crosshair.
+- **Reticle Opacity** edits the alpha byte of the port's reticle colour.
+  **Smooth Reticle** (per player, on by default, off under Force Original):
+  the reticle normally snaps to whole N64 pixels (about 4.5 screen pixels at
+  1080p). `sight.c` now draws the hip-fire target and the aimer box at the
+  whole pixel plus a quarter-pixel `gDPSetSubpixelOffsetEXT` offset, the
+  finest step the renderer takes (U10.2). Finer than that would need a
+  renderer change.
 - Aim & Camera Feel shows 7 main sliders (zone width/height, Camera Share,
   Camera Lead, Catch-Up, Catch-Up Delay, Gun Response). The rest are behind
   the "Show Advanced Feel" tick (at the bottom of the page) (`WeightyAim.ShowAdvancedFeel`, saved;

@@ -21,7 +21,7 @@
  *   Turn Boost...          extra turn speed at full stick
  *   Aim Mode...            what holding aim does: aim mode, aim down sights, reticle/laser
  *   Gyro Aim...            motion controls (Advanced... inside)
- *   Reticle...             on/off (hip-fire, aiming), size, colour & opacity
+ *   Reticle...             on/off (hip-fire, aiming), size, opacity, smooth, colour
  *   Laser Sight / Laser Dot / Aim Assist / Debug Log / Reset
  *   Force Original Aim & Settings / Force Mouse & Gyro as Stick (tournaments)
  *
@@ -949,12 +949,47 @@ extern MenuItemHandlerResult menuhandlerCrosshairSize(s32 operation, struct menu
 extern MenuItemHandlerResult menuhandlerCrosshairHealth(s32 operation, struct menuitem *item, union handlerdata *data);
 extern struct menudialogdef g_ExtendedGameCrosshairColourMenuDialog;
 
+// Reticle opacity: the alpha byte of the port's reticle colour, 0 - 100 %
+static MenuItemHandlerResult menuhandlerWeightyAimReticleOpacity(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	u32 *colour = &g_PlayerExtCfg[optionsGetExtMenuPlayer() & 3].crosshaircolour;
+
+	switch (operation) {
+	case MENUOP_GETSLIDER:
+		data->slider.value = ((*colour & 0xff) * 20 + 127) / 255;
+		break;
+	case MENUOP_SET:
+		*colour = (*colour & 0xffffff00) | (u32)((data->slider.value * 255 + 10) / 20);
+		break;
+	case MENUOP_GETSLIDERLABEL:
+		sprintf(data->slider.label, "%d%%", data->slider.value * 5);
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimSmoothReticle(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return g_WeightyAimSmoothReticle[optionsGetExtMenuPlayer() & 3];
+	case MENUOP_SET:
+		g_WeightyAimSmoothReticle[optionsGetExtMenuPlayer() & 3] = data->checkbox.value ? 1 : 0;
+		break;
+	}
+
+	return 0;
+}
+
 struct menuitem g_WeightyAimReticleMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Reticle", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)"Reticle Size", 4, menuhandlerCrosshairSize },
-	WEIGHTYAIM_SUBPAGE("Reticle Colour & Opacity...\n", g_ExtendedGameCrosshairColourMenuDialog),
+	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)"Reticle Opacity", 20, menuhandlerWeightyAimReticleOpacity },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Smooth Reticle", 0, menuhandlerWeightyAimSmoothReticle },
+	WEIGHTYAIM_SUBPAGE("Reticle Colour...\n", g_ExtendedGameCrosshairColourMenuDialog),
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle Colour by Health", 0, menuhandlerCrosshairHealth },
 	WEIGHTYAIM_BACK,
 };

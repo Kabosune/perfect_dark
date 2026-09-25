@@ -53,6 +53,7 @@
 struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
 f32 g_WeightyAimAssistStrength[4];
+s32 g_WeightyAimSmoothReticle[4];     // Smooth Reticle, per player
 s32 g_WeightyAimShowAdvancedFeel = 0; // Aim & Camera Feel: show the fine-tuning sliders too
 s32 g_WeightyAimForceOriginal = 0;     // Force Original Aim & Settings: 1:1 with the original game for everyone
 s32 g_WeightyAimForceMouseGyroStick = 0; // with Force Original Aim & Settings: mouse and gyro act as a stick
@@ -1276,6 +1277,12 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
  * Aim assist limits
  */
 
+bool weightyAimSmoothReticle(void)
+{
+	// Force Original Aim & Settings keeps the original whole-pixel reticle
+	return !g_WeightyAimForceOriginal && g_WeightyAimSmoothReticle[g_Vars.currentplayerstats->mpindex & 3] != 0;
+}
+
 bool weightyAimAssistAllowed(void)
 {
 	if (g_WeightyAimForceOriginal) {
@@ -2005,6 +2012,8 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterInt(strFmt("WeightyAim.Player%d.LastCustom", i), &g_WeightyAimLastCustom[j], 0, WEIGHTYAIM_NUM_CUSTOM - 1);
 		g_WeightyAimAssistStrength[j] = 1.f;
 		configRegisterFloat(strFmt("WeightyAim.Player%d.AimAssistStrength", i), &g_WeightyAimAssistStrength[j], 0.f, 1.f);
+		g_WeightyAimSmoothReticle[j] = 1;
+		configRegisterInt(strFmt("WeightyAim.Player%d.SmoothReticle", i), &g_WeightyAimSmoothReticle[j], 0, 1);
 
 		g_WeightyAimGyroCfg[j] = g_WeightyAimGyroDefaults;
 		configRegisterInt(strFmt("WeightyAim.Player%d.GyroMode", i), &g_WeightyAimGyroCfg[j].mode, 0, WEIGHTYAIM_NUM_GYROMODES - 1);

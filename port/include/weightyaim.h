@@ -282,6 +282,8 @@ void weightyAimGetCrosshair(f32 *x, f32 *y);
  */
 bool weightyAimHideCrosshair(void);
 bool weightyAimForceCrosshair(void);
+bool weightyAimSmoothReticle(void); // Smooth Reticle: draw at quarter-pixel steps instead of whole N64 pixels
+extern s32 g_WeightyAimSmoothReticle[4];
 
 /*
  * Hook 4 (bondgun.c, per hand each frame): true if Weighty Aim wants a laser
