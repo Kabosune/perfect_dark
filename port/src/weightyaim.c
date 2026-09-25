@@ -463,9 +463,9 @@ static const struct weightyaimcfg g_WeightyAimPresetArcade = {
 	.adsheight = -4.f,
 	.adsmovespeed = 0.6f,
 	.adssens = 0.65f,
-	.edgeturnspeed = 90.f,
-	.edgeband = 0.2f,
-	.edgeinfluence = 0.25f,
+	.edgeturnspeed = 120.f,
+	.edgeband = 0.3f,
+	.edgeinfluence = 0.8f,
 	.edgevertical = 0.4f,
 	.edgemouse = 1,
 	.edgegyro = 1,
@@ -1076,7 +1076,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 					: gm >= mm ? WEIGHTYAIM_INPUT_GYRO : WEIGHTYAIM_INPUT_MOUSE;
 			}
 
-			autoedge = ec->edgeturnspeed > 0.001f && ads < 0.5f
+			autoedge = ec->edgeturnspeed > 0.001f
 				&& (st->lastinput == WEIGHTYAIM_INPUT_MOUSE ? ec->edgemouse
 					: st->lastinput == WEIGHTYAIM_INPUT_GYRO ? ec->edgegyro : ec->edgestick);
 		}
@@ -1197,7 +1197,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 
 			if (t > 0.f && st->edgetime > WEIGHTYAIM_EDGE_TURN_DELAY) {
 				const f32 ease = clampf((st->edgetime - WEIGHTYAIM_EDGE_TURN_DELAY) / WEIGHTYAIM_EDGE_TURN_EASE, 0.f, 1.f);
-				const f32 speed = ec->edgeturnspeed * t * t * (3.f - 2.f * t) * ease;
+				// while aiming it slows down like everything else (Aim Sensitivity)
+				const f32 aimslow = 1.f + (clampf(cfg->adssens, 0.1f, 1.f) - 1.f) * ads;
+				const f32 speed = ec->edgeturnspeed * t * t * (3.f - 2.f * t) * ease * aimslow;
 
 				camdeg[0] += nx / e * speed * dtsec;
 				camdeg[1] += ny / e * speed * dtsec * clampf(ec->edgevertical, 0.f, 1.f);

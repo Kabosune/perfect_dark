@@ -151,9 +151,10 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   turning on its own, eased by smoothstep across the band, after a 0.15s
   delay and a 0.2s ease-in. Vertical is scaled by `edgevertical`. It applies
   to the input that moved the reticle last (`lastinput`; per-preset ticks
-  `edgemouse`/`edgegyro` on, `edgestick` off), and not while aiming down
-  sights. While it applies, pushing past the edge only turns by
-  `edgeinfluence` (0.25), and Camera Lead and Catch-Up pause in the band.
+  `edgemouse`/`edgegyro` on, `edgestick` off). While aiming (Modern aim mode)
+  it keeps working, slowed by Aim Sensitivity. While it applies, pushing past
+  the edge only turns by `edgeinfluence` (0.25 by default, 0.8 in Arcade),
+  and Camera Lead and Catch-Up pause in the band.
   This deliberately breaks "aim always adds up to your input", like Wii
   shooters.
 - **Reticle profiles:** reticle size, opacity and Smooth Reticle are
@@ -200,7 +201,8 @@ Main preset traits:
   on, slower gun (4.6), more drag (0.6), less sway.
 - **Arcade:** Wii / rail-shooter style, "point at the screen". Big zone
   (28/18 deg), camera share 0, no lead or catch-up, light fast gun (14 Hz,
-  damping 0.85, drag 0.1), little sway, Edge Auto-Turn 90 deg/s. Has its own
+  damping 0.85, drag 0.1), little sway, Edge Auto-Turn 120 deg/s, band 30%,
+  input influence 80%. Has its own
   reticle profile. Listed third in the menu (saved number 7, after the
   customs; `g_WeightyAimPresetOrder`).
 - **Boring:** Modern, full movement, camera share 1 (no free-aim feel).
@@ -292,6 +294,17 @@ from Control Options (`mainmenu.c`) and from shortcuts in `optionsmenu.c`.
   in general, but the revolver hasn't been tested.
 - Improve or replace Catch-Up Smoothing with a proper ease-in for the
   camera's re-centre jerk.
+- Look-stick deadzone (for testing later, not done yet): the port removes
+  its own stick deadzone in `input.c` before the game sees the stick (12.5%
+  per axis, 18.75% on right-stick Y, square not circular), on top of the
+  game's tick and the mod's Inner Deadzone. With the squared Original and
+  Source Port curves, the first quarter of the stick feels dead. Idea: when
+  a Weighty Aim curve is active, bypass the port's deadzone for the look
+  stick so only the mod's deadzones apply (Force Original keeps the
+  original). Careful: it touches the port's input code, which could clash
+  with other settings, and with forks that take the mod into their own
+  projects. Test first by setting RStick Deadzone X/Y to 0 in the port's
+  stick settings.
 
 ---
 
