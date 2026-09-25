@@ -150,7 +150,9 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   the reticle rests in the outer band of the zone (`edgeband`), the view keeps
   turning on its own, eased by smoothstep across the band, after a 0.15s
   delay and a 0.2s ease-in. Vertical is scaled by `edgevertical`. It applies
-  to the input that moved the reticle last (`lastinput`; per-preset ticks
+  to the input that moved the reticle last (`lastinput`; the stick only
+  counts past 25% tilt, `WEIGHTYAIM_EDGE_STICK_TILT`, so a resting thumb or
+  drift doesn't cancel it; per-preset ticks
   `edgemouse`/`edgegyro` on, `edgestick` off). While aiming (Modern aim mode)
   it keeps working, slowed by Aim Sensitivity. While it applies, pushing past
   the edge only turns by `edgeinfluence` (0.25 by default, 0.8 in Arcade),

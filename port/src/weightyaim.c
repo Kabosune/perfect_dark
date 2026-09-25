@@ -238,6 +238,7 @@ s32 g_WeightyAimDebugPattern = 0;
 #define WEIGHTYAIM_INPUT_GYRO  2
 #define WEIGHTYAIM_EDGE_TURN_DELAY 0.15f // seconds at the edge before Edge Auto-Turn starts
 #define WEIGHTYAIM_EDGE_TURN_EASE  0.2f  // seconds for it to reach full speed after that
+#define WEIGHTYAIM_EDGE_STICK_TILT 0.25f // stick tilt that counts as "using the stick" for Edge Auto-Turn
 #define WEIGHTYAIM_LEAD_EASE_IN 0.3f // seconds for Camera Lead to fade back in after an edge turn
 #define WEIGHTYAIM_LEAD_FULL_INPUT 0.5f // look speed (fraction of full stick) that gives full Camera Lead
 #define WEIGHTYAIM_LEAD_INPUT_SMOOTH 0.1f // seconds: Camera Lead follows your input with a short tail
@@ -952,6 +953,10 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	// Requested rotation this frame in degrees, exactly as PD would apply it.
 	// Pitch: PD sets speedverta = -(stick + mouse), and +speedverta looks up.
 	weightyAimStickRates(sc, st, *analogturn, *analogpitch, dtsec, stickrate);
+
+	// how far the look stick is pushed (0..1), for Edge Auto-Turn's input check
+	const f32 stickfull = sc->curve == WEIGHTYAIM_CURVE_ORIGINAL ? WEIGHTYAIM_N64_STICK_MAX : 127.f;
+	const f32 sticktilt = bc_sqrtf((f32)(*analogturn * *analogturn + *analogpitch * *analogpitch)) / stickfull;
 	stickdeg[0] = stickrate[0] * fovscale * DEG_PER_SPEED_TICK * dt60;
 	mousedeg[0] = *freelookdx * mlookscale * fovscale * DEG_PER_SPEED_TICK * dt60;
 	stickdeg[1] = -stickrate[1] * fovscale * DEG_PER_SPEED_TICK * dt60;
@@ -1067,7 +1072,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		// Edge Auto-Turn applies to the input that moved the reticle last
 		// (by default mouse and gyro; a held stick keeps turning by itself)
 		{
-			const f32 sm = bc_fabsf(stickdeg[0]) + bc_fabsf(stickdeg[1]);
+			// a resting thumb or a little drift doesn't count as using the stick:
+			// it only takes over past WEIGHTYAIM_EDGE_STICK_TILT
+			const f32 sm = sticktilt >= WEIGHTYAIM_EDGE_STICK_TILT ? bc_fabsf(stickdeg[0]) + bc_fabsf(stickdeg[1]) : 0.f;
 			const f32 gm = bc_fabsf(gyrodeg[0]) + bc_fabsf(gyrodeg[1]);
 			const f32 mm = bc_fabsf(mousedeg[0] - gyrodeg[0]) + bc_fabsf(mousedeg[1] - gyrodeg[1]);
 
