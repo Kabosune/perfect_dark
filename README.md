@@ -9,7 +9,7 @@ A mod for the Perfect Dark PC port that makes aiming feel physical, in the spiri
 - **Bugs:** report them on the [Issues](../../issues) tab
 - **Developers:** see the [design notes](WEIGHTY_AIM_DESIGN.md)
 
-Weighty Aim is by Kabosune/KaboWabo (me :3), developed with AI assistance (Claude Opus 5.5). It's built on [fgsfdsfgs/perfect_dark](https://github.com/fgsfdsfgs/perfect_dark); the original port's README follows below.
+Weighty Aim is by KaboWabo/Kabosune (me :3), developed with AI assistance (Claude Opus 5.5). It's built on [fgsfdsfgs/perfect_dark](https://github.com/fgsfdsfgs/perfect_dark); the original port's README follows below.
 
 ---
 
