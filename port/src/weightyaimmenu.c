@@ -85,34 +85,54 @@ static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct m
  * Aim & Camera Feel
  */
 
+// The first WEIGHTYAIM_FEEL_NUM_MAIN sliders are always shown; the rest are
+// fine-tuning, shown with the "Show Advanced Feel" tick.
+#define WEIGHTYAIM_FEEL_NUM_MAIN 7
+
 static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(deadzonex),     0.5f,  0.f,  "%.1f deg", NULL,  0 },
 	{ AIMFIELD(deadzoney),     0.5f,  0.f,  "%.1f deg", NULL,  0 },
 	{ AIMFIELD(camerashare),   0.05f, 0.f,  "%.0f%%",   NULL,  1 },
 	{ AIMFIELD(cameralead),    0.1f,  0.f,  "%.1f",     "Off", 0 },
-	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
 	{ AIMFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off", 0 },
 	{ AIMFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL,  0 },
-	{ AIMFIELD(recentersmooth), 0.05f, 0.f, "%.2fs",    "Off", 0 },
 	{ AIMFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL,  0 },
+	// advanced
+	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
+	{ AIMFIELD(recentersmooth), 0.05f, 0.f, "%.2fs",    "Off", 0 },
 	{ AIMFIELD(gundamping),    0.05f, 0.1f, "%.2f",     NULL,  0 },
 	{ AIMFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL,  0 },
 	{ AIMFIELD(camerasway),    0.05f, 0.f,  "%.2f deg", "Off", 0 },
 	{ AIMFIELD(walksway),      0.1f,  0.f,  "%.1f deg", "Off", 0 },
 };
 
+static MenuItemHandlerResult menuhandlerWeightyAimShowAdvancedFeel(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return g_WeightyAimShowAdvancedFeel;
+	case MENUOP_SET:
+		g_WeightyAimShowAdvancedFeel = data->checkbox.value ? 1 : 0;
+		break;
+	}
+
+	return 0;
+}
+
 struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Show Advanced Feel", 0, menuhandlerWeightyAimShowAdvancedFeel },
 	// order must match g_WeightyAimFeelSliders
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),   // 0 - 20 deg
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),  // 0 - 15 deg
 	WEIGHTYAIM_SLIDER("Camera Share", 20),          // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Camera Lead", 30),           // 0 - 3
-	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
 	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),       // 0 - 5
 	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),        // 0 - 2 s
-	WEIGHTYAIM_SLIDER("Catch-Up Smoothing", 20),    // 0 - 1 s: eases the camera into re-centring
 	WEIGHTYAIM_SLIDER("Gun Response", 40),          // 1 - 20 Hz
+	// advanced (hidden unless "Show Advanced Feel" is ticked)
+	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
+	WEIGHTYAIM_SLIDER("Catch-Up Smoothing", 20),    // 0 - 1 s: eases the camera into re-centring
 	WEIGHTYAIM_SLIDER("Gun Damping", 30),           // 0.1 - 1.5
 	WEIGHTYAIM_SLIDER("Turn Drag", 20),             // 0 - 1
 	WEIGHTYAIM_SLIDER("Camera Sway", 30),           // 0 - 1.5 deg
@@ -713,7 +733,7 @@ extern struct menuitem g_WeightyAimMenuItems[];
  */
 
 static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
-	{ g_WeightyAimFeelMenuItems,  1, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimFeelMenuItems,  2, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 	{ g_WeightyAimStickMenuItems, 2, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
@@ -749,6 +769,14 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
 	field = (f32 *)((u8 *)page->getcfg() + sl->offset);
 
 	switch (operation) {
+	case MENUOP_CHECKHIDDEN:
+	case MENUOP_CHECKDISABLED:
+		// Aim & Camera Feel: fine-tuning sliders only show with "Show Advanced Feel"
+		if (page->items == g_WeightyAimFeelMenuItems && index >= WEIGHTYAIM_FEEL_NUM_MAIN
+				&& !g_WeightyAimShowAdvancedFeel) {
+			return true;
+		}
+		break;
 	case MENUOP_GETSLIDER:
 		value = (*field - sl->base) / sl->step + 0.5f;
 		data->slider.value = value > 0.f ? (u32)value : 0;

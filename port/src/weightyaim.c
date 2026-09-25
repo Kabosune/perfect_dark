@@ -53,6 +53,7 @@
 struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
 f32 g_WeightyAimAssistStrength[4];
+s32 g_WeightyAimShowAdvancedFeel = 0; // Aim & Camera Feel: show the fine-tuning sliders too
 struct weightyaimgyrocfg g_WeightyAimGyroCfg[4];
 
 const char *g_WeightyAimGyroModeNames[WEIGHTYAIM_NUM_GYROMODES] = {
@@ -208,12 +209,15 @@ void weightyAimResetBoostDefaults(s32 cfgindex)
 s32 g_WeightyAimDebugLog = 0;
 s32 g_WeightyAimDebugPattern = 0;
 
+#define WEIGHTYAIM_LEAD_EASE_IN 0.3f // seconds for Camera Lead to fade back in after an edge turn
+
 struct weightyaimstate {
 	f32 target[2];   // where the gun wants to point (yaw, pitch), degrees from camera centre
 	f32 display[2];  // where the gun actually points after inertia
 	f32 vel[2];      // spring velocity, degrees/second
 	f32 over[2];     // how far the gun is pushed past the edge of the zone, degrees (drains into camera turn)
 	f32 idletime;    // seconds since the last look input
+	f32 leadramp;    // 0..1: Camera Lead eases back in after an edge turn instead of kicking in at full strength
 	f32 boostheld;   // seconds the stick has been held past the boost threshold
 	f32 boostlevel;  // current turn boost, 0..1
 	bool aiming;     // aim button held and Weighty Aim drives the look (Modern), this frame
@@ -733,6 +737,7 @@ static void weightyAimResetState(struct weightyaimstate *st)
 	st->over[0] = st->over[1] = 0.f;
 	st->assist[0] = st->assist[1] = 0.f;
 	st->idletime = 0.f;
+	st->leadramp = 0.f;
 	st->sway[0] = st->sway[1] = 0.f;
 }
 
@@ -963,8 +968,14 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			const f32 edgeness = bc_sqrtf(clampf((st->target[0] / zx) * (st->target[0] / zx)
 						+ (st->target[1] / zy) * (st->target[1] / zy), 0.f, 1.f));
 			f32 rate = 0.f;
+			const bool edgeturn = st->over[0] != 0.f || st->over[1] != 0.f;
 
-			if (st->over[0] != 0.f || st->over[1] != 0.f) {
+			// Lead is off while turning from the edge, then eases back in over
+			// WEIGHTYAIM_LEAD_EASE_IN seconds. Switching straight back on at the edge
+			// (where it's strongest) felt like a sudden snap back toward the centre.
+			st->leadramp = edgeturn ? 0.f : clampf(st->leadramp + dtsec / WEIGHTYAIM_LEAD_EASE_IN, 0.f, 1.f);
+
+			if (edgeturn) {
 				// already turning from the edge; leading as well would slow that turn down
 				rate = 0.f;
 			} else if (st->idletime > ec->recenterdelay) {
@@ -976,7 +987,8 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 					rate *= e * e * (3.f - 2.f * e);
 				}
 			} else if (reqlen > 0.0001f || st->idletime > 0.f) {
-				rate = ec->cameralead * edgeness;
+				const f32 r = st->leadramp;
+				rate = ec->cameralead * edgeness * r * r * (3.f - 2.f * r);
 			}
 
 			if (rate > 0.f) {
@@ -1888,6 +1900,8 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 {
 	static const char *pointnames[4] = { "X1", "Y1", "X2", "Y2" };
 	char prefix[64];
+
+	configRegisterInt("WeightyAim.ShowAdvancedFeel", &g_WeightyAimShowAdvancedFeel, 0, 1);
 
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
 		const s32 i = j + 1;

@@ -90,7 +90,12 @@ frame with the stick and mouse look input. In order:
    any overflow past the box edge goes to the camera. `adszone` ("Aim Feel
    While Aiming") blends toward camera-only aiming while ADS.
 6. **Recentre.** After `recenterdelay` of no input, the aim point returns to
-   centre at `recenterspeed`, eased in over `recentersmooth`.
+   centre at `recenterspeed`, eased in over `recentersmooth`. Before that,
+   while moving, Camera Lead (`cameralead`) pulls the camera toward the aim
+   point, stronger near the zone edge. Lead is off while turning from the
+   edge and eases back in over 0.3s (`leadramp`), so it doesn't snap back.
+   Lead and Catch-Up both move aim from the crosshair into the camera, so
+   the total aim never changes.
 7. **Spring.** `weightyAimStepSpring()` moves the displayed gun and crosshair
    toward the aim point (`gunresponse`, `gundamping`, `turndrag`). The lag is
    capped after each spring step so fast turns can't leave the gun far
@@ -106,6 +111,10 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
 
 ## 4. Settings, presets and `pd.ini`
 
+- Aim & Camera Feel shows 7 main sliders (zone width/height, Camera Share,
+  Camera Lead, Catch-Up, Catch-Up Delay, Gun Response). The rest are behind
+  the "Show Advanced Feel" tick (`WeightyAim.ShowAdvancedFeel`, saved;
+  `WEIGHTYAIM_FEEL_NUM_MAIN` in `weightyaimmenu.c`).
 - The aim-feel settings live in `struct weightyaimcfg`, one per preset. The
   field table `g_WeightyAimCfgFields` (the `WA_FLOAT` and `WA_INT` macros)
   drives both `pd.ini` registration and the sliders. To add a setting, add

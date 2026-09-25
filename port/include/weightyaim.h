@@ -119,6 +119,7 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
+extern s32 g_WeightyAimShowAdvancedFeel; // Aim & Camera Feel shows the fine-tuning sliders
 extern f32 g_WeightyAimAssistStrength[4]; // 0..1 of what the game and difficulty allow (1 = game default, 0 = off)
 
 #define WEIGHTYAIM_GYRO_OFF     0
