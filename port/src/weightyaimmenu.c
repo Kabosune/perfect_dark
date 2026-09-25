@@ -19,7 +19,7 @@
  *   Aim & Camera Feel...   free-aim zone, gun weight, camera lead, sway
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
- *   Aim Mode...            what holding aim does: aim mode, aim down sights, laser
+ *   Aim Mode...            what holding aim does: aim mode, aim down sights, reticle/laser
  *   Gyro Aim...            motion controls (Advanced... inside)
  *   Reticle...             on/off (hip-fire, aiming), size, colour & opacity
  *   Laser Sight / Laser Dot / Aim Assist / Debug Log / Reset
@@ -543,6 +543,7 @@ struct menuitem g_WeightyAimAdsMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Controller: Move While Aiming", 0, menuhandlerWeightyAimMovement },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Keyboard: Move While Aiming", 0, menuhandlerWeightyAimKeyboardMove },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle While Aiming", 0, menuhandlerWeightyAimAimCrosshair }, // also on the Reticle page
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Beam While Aiming", 0, menuhandlerWeightyAimAimLaserBeam },
 	// order must match g_WeightyAimAdsSliders
@@ -741,7 +742,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
 	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
-	{ g_WeightyAimAdsMenuItems,   7, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimAdsMenuItems,   8, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
