@@ -54,6 +54,8 @@ struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
 f32 g_WeightyAimAssistStrength[4];
 s32 g_WeightyAimShowAdvancedFeel = 0; // Aim & Camera Feel: show the fine-tuning sliders too
+s32 g_WeightyAimForceOriginal = 0;     // Force Original Aiming: 1:1 with the original game for everyone
+s32 g_WeightyAimForceMouseGyroStick = 0; // with Force Original Aiming: mouse and gyro act as a stick
 struct weightyaimgyrocfg g_WeightyAimGyroCfg[4];
 
 const char *g_WeightyAimGyroModeNames[WEIGHTYAIM_NUM_GYROMODES] = {
@@ -442,7 +444,8 @@ void weightyAimInit(void)
 
 static inline bool weightyAimCfgEnabled(const struct weightyaimcfg *cfg)
 {
-	return cfg->preset != WEIGHTYAIM_PRESET_CLASSIC;
+	// Force Original Aiming turns every Weighty Aim feature off, whatever the preset
+	return !g_WeightyAimForceOriginal && cfg->preset != WEIGHTYAIM_PRESET_CLASSIC;
 }
 
 static inline f32 clampf(f32 v, f32 lo, f32 hi)
@@ -467,6 +470,19 @@ static inline f32 weightyAimStickCurve(s32 analog)
 {
 	f32 v = clampf(analog / 70.f, -1.f, 1.f);
 	return v >= 0.f ? v * v : -v * v;
+}
+
+/**
+ * Force Mouse & Gyro as Stick: turns a look rate (1 = full stick) back into the
+ * stick value that would give it through the curve above. It's capped at full
+ * tilt and rounded to whole stick steps, like a real stick.
+ */
+static s32 weightyAimVirtualStick(f32 rate)
+{
+	const f32 v = bc_sqrtf(clampf(rate < 0.f ? -rate : rate, 0.f, 1.f)) * 70.f;
+	const s32 a = (s32)(v + 0.5f);
+
+	return rate < 0.f ? -a : a;
 }
 
 /**
@@ -649,7 +665,7 @@ f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection)
  */
 bool weightyAimGameDeadzoneWanted(void)
 {
-	return g_WeightyAimStickCfg[g_Vars.currentplayerstats->mpindex & 3].gamedeadzone != 0;
+	return g_WeightyAimForceOriginal || g_WeightyAimStickCfg[g_Vars.currentplayerstats->mpindex & 3].gamedeadzone != 0;
 }
 
 static f32 weightyAimPatternYaw(f32 t)
@@ -834,7 +850,24 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		// Aim mod off (Classic) but a custom stick response chosen (a different
 		// curve, turn boost, or a sensitivity other than 1x): still apply it.
 		// With analog zeroed, PD computes speed = (freelook * mlookscale) * fovscale.
-		if (canlook && (sc->curve != WEIGHTYAIM_CURVE_ORIGINAL || st->boostlevel > 0.f
+		if (g_WeightyAimForceOriginal) {
+			// Force Original Aiming: the game's own stick handling, no custom
+			// stick response, Look Acceleration or gyro. The mouse stays as the
+			// port has it unless Mouse & Gyro as Stick is on: then mouse and gyro
+			// are folded into the stick value, so they can't turn faster than a
+			// stick at full tilt.
+			if (canlook && g_WeightyAimForceMouseGyroStick
+					&& (*freelookdx != 0.f || *freelookdy != 0.f || gyrodeg[0] != 0.f || gyrodeg[1] != 0.f)) {
+				const f32 gyroscale = DEG_PER_SPEED_TICK * dt60 * fovscale;
+				const f32 x = weightyAimStickCurve(*analogturn) + *freelookdx * mlookscale + gyrodeg[0] / gyroscale;
+				const f32 y = weightyAimStickCurve(*analogpitch) + *freelookdy * mlookscale - gyrodeg[1] / gyroscale;
+
+				*analogturn = weightyAimVirtualStick(x);
+				*analogpitch = weightyAimVirtualStick(y);
+				*freelookdx = 0.f;
+				*freelookdy = 0.f;
+			}
+		} else if (canlook && (sc->curve != WEIGHTYAIM_CURVE_ORIGINAL || st->boostlevel > 0.f
 					|| bc_fabsf(sc->turnspeed - 1.f) > 0.001f || bc_fabsf(sc->verticalsens - 1.f) > 0.001f)) {
 			*analogturn = 0;
 			*analogpitch = 0;
@@ -842,8 +875,8 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			*freelookdy += stickrate[1] / mlookscale;
 		}
 
-		// gyro works with the Classic preset too
-		if (canlook && (gyrodeg[0] != 0.f || gyrodeg[1] != 0.f)) {
+		// gyro works with the Classic preset too (not with Force Original Aiming)
+		if (canlook && !g_WeightyAimForceOriginal && (gyrodeg[0] != 0.f || gyrodeg[1] != 0.f)) {
 			*freelookdx += gyrodeg[0] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);
 			*freelookdy -= gyrodeg[1] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);
 		}
@@ -1220,12 +1253,20 @@ void weightyAimGetCrosshair(f32 *x, f32 *y)
 
 bool weightyAimAssistAllowed(void)
 {
+	if (g_WeightyAimForceOriginal) {
+		return true;
+	}
+
 	return g_WeightyAimAssistStrength[g_Vars.currentplayerstats->mpindex & 3] > 0.001f;
 }
 
 f32 weightyAimAssistScale(void)
 {
 	// capped at 1: can weaken the game's aim assist, never strengthen it
+	if (g_WeightyAimForceOriginal) {
+		return 1.f;
+	}
+
 	return clampf(g_WeightyAimAssistStrength[g_Vars.currentplayerstats->mpindex & 3], 0.f, 1.f);
 }
 
@@ -1917,6 +1958,8 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 	char prefix[64];
 
 	configRegisterInt("WeightyAim.ShowAdvancedFeel", &g_WeightyAimShowAdvancedFeel, 0, 1);
+	configRegisterInt("WeightyAim.ForceOriginalAiming", &g_WeightyAimForceOriginal, 0, 1);
+	configRegisterInt("WeightyAim.ForceMouseGyroAsStick", &g_WeightyAimForceMouseGyroStick, 0, 1);
 
 	for (s32 j = 0; j < MAX_PLAYERS; ++j) {
 		const s32 i = j + 1;

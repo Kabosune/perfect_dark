@@ -113,6 +113,19 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
 
 ## 4. Settings, presets and `pd.ini`
 
+- **Force Original Aiming** (top of the main page, `WeightyAim.ForceOriginalAiming`,
+  global for all players, saved) is for tournaments: 1:1 with the original
+  game whatever anyone's settings are. `weightyAimCfgEnabled()` returns false
+  (every Weighty Aim feature off, like Classic), and it also blocks what
+  Classic lets through: custom stick response and Look Acceleration, gyro,
+  Aim Assist strength (forced to the game's own) and the deadzone tick
+  (the game's deadzone is forced on). Nothing is overwritten, so unticking
+  it brings everyone's setup back. The mouse stays as the port has it.
+- **Force Mouse & Gyro as Stick** (`WeightyAim.ForceMouseGyroAsStick`, shown
+  only with Force Original Aiming): mouse and gyro are added to the stick's
+  look rate and turned back into a stick value (`weightyAimVirtualStick()`),
+  capped at full tilt and rounded to whole stick steps, so they can't turn
+  faster than a stick. Mouse is still more precise for tiny moves.
 - Aim & Camera Feel shows 7 main sliders (zone width/height, Camera Share,
   Camera Lead, Catch-Up, Catch-Up Delay, Gun Response). The rest are behind
   the "Show Advanced Feel" tick (`WeightyAim.ShowAdvancedFeel`, saved;

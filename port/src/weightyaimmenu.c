@@ -738,7 +738,7 @@ static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
-	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
+	{ g_WeightyAimMenuItems,     15, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
 	{ g_WeightyAimAdsMenuItems,   8, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
@@ -919,7 +919,41 @@ static MenuItemHandlerResult menuhandlerWeightyAimReset(s32 operation, struct me
 #define WEIGHTYAIM_SUBPAGE(label, dialog) \
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG, (uintptr_t)(label), 0, (void *)&(dialog) }
 
+static MenuItemHandlerResult menuhandlerWeightyAimForceOriginal(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return g_WeightyAimForceOriginal;
+	case MENUOP_SET:
+		g_WeightyAimForceOriginal = data->checkbox.value ? 1 : 0;
+		break;
+	}
+
+	return 0;
+}
+
+static MenuItemHandlerResult menuhandlerWeightyAimForceMouseGyroStick(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	switch (operation) {
+	case MENUOP_GET:
+		return g_WeightyAimForceMouseGyroStick;
+	case MENUOP_SET:
+		g_WeightyAimForceMouseGyroStick = data->checkbox.value ? 1 : 0;
+		break;
+	case MENUOP_CHECKHIDDEN:
+	case MENUOP_CHECKDISABLED:
+		// only means something with Force Original Aiming on
+		return !g_WeightyAimForceOriginal;
+	}
+
+	return 0;
+}
+
 struct menuitem g_WeightyAimMenuItems[] = {
+	// for tournaments: 1:1 with the original game for every player, whatever their settings
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Original Aiming", 0, menuhandlerWeightyAimForceOriginal },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Mouse & Gyro as Stick", 0, menuhandlerWeightyAimForceMouseGyroStick },
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
