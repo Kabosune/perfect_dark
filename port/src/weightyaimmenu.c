@@ -184,6 +184,18 @@ static void weightyAimStickChanged(s32 sliderindex)
 	}
 }
 
+// menu order (the saved numbers stay as they were, so Source Port is listed
+// second although it was added last)
+static const s32 g_WeightyAimCurveOrder[WEIGHTYAIM_NUM_CURVES] = {
+	WEIGHTYAIM_CURVE_ORIGINAL,
+	WEIGHTYAIM_CURVE_SOURCEPORT,
+	WEIGHTYAIM_CURVE_LINEAR,
+	WEIGHTYAIM_CURVE_BALANCED,
+	WEIGHTYAIM_CURVE_CUSTOM1,
+	WEIGHTYAIM_CURVE_CUSTOM2,
+	WEIGHTYAIM_CURVE_CUSTOM3,
+};
+
 static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -191,12 +203,18 @@ static MenuItemHandlerResult menuhandlerWeightyAimCurve(s32 operation, struct me
 		data->dropdown.value = WEIGHTYAIM_NUM_CURVES;
 		break;
 	case MENUOP_GETOPTIONTEXT:
-		return (intptr_t)g_WeightyAimCurveNames[data->dropdown.value];
+		return (intptr_t)g_WeightyAimCurveNames[g_WeightyAimCurveOrder[data->dropdown.value % WEIGHTYAIM_NUM_CURVES]];
 	case MENUOP_SET:
-		weightyAimSelectCurve(optionsGetExtMenuPlayer(), data->dropdown.value);
+		weightyAimSelectCurve(optionsGetExtMenuPlayer(), g_WeightyAimCurveOrder[data->dropdown.value % WEIGHTYAIM_NUM_CURVES]);
 		break;
 	case MENUOP_GETSELECTEDINDEX:
-		data->dropdown.value = weightyAimMenuStickCfg()->curve;
+		data->dropdown.value = 0;
+		for (s32 i = 0; i < WEIGHTYAIM_NUM_CURVES; i++) {
+			if (g_WeightyAimCurveOrder[i] == weightyAimMenuStickCfg()->curve) {
+				data->dropdown.value = i;
+				break;
+			}
+		}
 		break;
 	}
 
@@ -235,7 +253,7 @@ static Gfx *weightyAimRenderCurveGraph(Gfx *gdl, struct menurendercontext *conte
 	const s32 gw = gx2 - gx1;
 	const s32 gh = gy2 - gy1;
 	const f32 ymax = sc->turnspeed > 1.f ? sc->turnspeed : 1.f;
-	const bool original = sc->curve == WEIGHTYAIM_CURVE_ORIGINAL;
+	const bool original = WEIGHTYAIM_IS_NATIVE_CURVE(sc->curve);
 	const f32 lo = original ? 0.f : sc->innerdeadzone;
 	const f32 hi = original ? 1.f : (sc->outerdeadzone > lo + 0.05f ? sc->outerdeadzone : lo + 0.05f);
 	s32 prevy = gy2;

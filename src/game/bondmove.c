@@ -774,6 +774,12 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 #ifndef PLATFORM_N64
 	c2stickx = allowc1x ? (s8) joyGetRStickX(contpad1) : 0;
 	c2sticky = allowc1y ? (s8) joyGetRStickY(contpad1) : 0;
+
+	// [weightyaim] Original curve / Force Original Aim & Settings: N64 stick range
+	c1stickx = weightyAimStickRange(c1stickx);
+	c1sticky = weightyAimStickRange(c1sticky);
+	c2stickx = weightyAimStickRange(c2stickx);
+	c2sticky = weightyAimStickRange(c2sticky);
 #endif
 
 	c1buttons = allowc1buttons ? joyGetButtons(contpad1, 0xffffffff) : 0;
@@ -878,6 +884,10 @@ void bmoveProcessInput(bool allowc1x, bool allowc1y, bool allowc1buttons, bool i
 				contpad2 = (s8) optionsGetContpadNum2(g_Vars.currentplayerstats->mpindex);
 				c2stickx = (s8) joyGetStickX(contpad2);
 				c2sticky = (joyGetStickY(contpad2) << 24) >> 24;
+#ifndef PLATFORM_N64
+				c2stickx = weightyAimStickRange(c2stickx); // [weightyaim] N64 stick range
+				c2sticky = weightyAimStickRange(c2sticky);
+#endif
 				c2buttons = joyGetButtons(contpad2, 0xffffffff);
 				c2buttonsthisframe = joyGetButtonsPressedThisFrame(contpad2, 0xffffffff);
 

@@ -117,6 +117,7 @@ const char *g_WeightyAimCurveNames[WEIGHTYAIM_NUM_CURVES] = {
 	"Custom 1",
 	"Custom 2",
 	"Custom 3",
+	"Source Port",
 };
 
 const char *g_WeightyAimBoostNames[WEIGHTYAIM_NUM_BOOSTS] = {
@@ -176,6 +177,26 @@ void weightyAimSelectCurve(s32 cfgindex, s32 curve)
 		memcpy(sc->bezier, sc->bezierprofile[slot], sizeof(sc->bezier));
 		sc->lastcustomcurve = slot;
 	}
+}
+
+/**
+ * The port maps a modern stick at full tilt to 127, but a real N64 stick only
+ * reaches about 80. The game's curve hits full speed at 70, so on the port it
+ * maxes out at about half tilt and feels twitchy. The Original curve and Force
+ * Original Aim & Settings scale the stick back to the N64's range (as emulators
+ * do), before the game reads it for turning, aiming and walking.
+ */
+s32 weightyAimStickRange(s32 v)
+{
+	const s32 cfgindex = g_Vars.currentplayerstats->mpindex & 3;
+
+	if (g_WeightyAimForceOriginal || g_WeightyAimStickCfg[cfgindex].curve == WEIGHTYAIM_CURVE_ORIGINAL) {
+		const f32 f = v * (WEIGHTYAIM_N64_STICK_MAX / 127.f);
+
+		return (s32)(f < 0.f ? f - 0.5f : f + 0.5f);
+	}
+
+	return v;
 }
 
 /**
@@ -576,12 +597,14 @@ static void weightyAimStickRates(const struct weightyaimstickcfg *sc, struct wei
 	// deadzone off the values arrive untouched.
 	{
 		const s32 safe = sc->gamedeadzone ? 5 : 0;
-		rx = turn == 0 ? 0.f : (turn + (turn > 0 ? safe : -safe)) / 127.f;
-		ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? safe : -safe)) / 127.f;
+		// the Original curve gets an N64-range stick (see weightyAimStickRange)
+		const f32 full = sc->curve == WEIGHTYAIM_CURVE_ORIGINAL ? WEIGHTYAIM_N64_STICK_MAX : 127.f;
+		rx = turn == 0 ? 0.f : (turn + (turn > 0 ? safe : -safe)) / full;
+		ry = pitch == 0 ? 0.f : (pitch + (pitch > 0 ? safe : -safe)) / full;
 	}
 	mag = bc_sqrtf(rx * rx + ry * ry);
 
-	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
+	if (WEIGHTYAIM_IS_NATIVE_CURVE(sc->curve)) {
 		// the game's own response, but sensitivity still applies
 		out[0] = weightyAimStickCurve(turn) * clampf(sc->turnspeed, 0.1f, 3.f);
 		out[1] = weightyAimStickCurve(pitch) * clampf(sc->turnspeed, 0.1f, 3.f) * clampf(sc->verticalsens, 0.1f, 3.f);
@@ -630,9 +653,11 @@ f32 weightyAimCurveOutput(const struct weightyaimstickcfg *sc, f32 deflection)
 
 	deflection = clampf(deflection, 0.f, 1.f);
 
-	if (sc->curve == WEIGHTYAIM_CURVE_ORIGINAL) {
-		// the game's response, including its small 5-unit safe zone
-		analog = (s32)(deflection * 127.f + 0.5f) - (sc->gamedeadzone ? 5 : 0);
+	if (WEIGHTYAIM_IS_NATIVE_CURVE(sc->curve)) {
+		// the game's response, including its small 5-unit safe zone; Original
+		// on an N64-range stick, Source Port on the port's range
+		const f32 full = sc->curve == WEIGHTYAIM_CURVE_ORIGINAL ? WEIGHTYAIM_N64_STICK_MAX : 127.f;
+		analog = (s32)(deflection * full + 0.5f) - (sc->gamedeadzone ? 5 : 0);
 		return analog > 0 ? weightyAimStickCurve(analog) * clampf(sc->turnspeed, 0.1f, 3.f) : 0.f;
 	}
 
@@ -867,7 +892,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 				*freelookdx = 0.f;
 				*freelookdy = 0.f;
 			}
-		} else if (canlook && (sc->curve != WEIGHTYAIM_CURVE_ORIGINAL || st->boostlevel > 0.f
+		} else if (canlook && (!WEIGHTYAIM_IS_NATIVE_CURVE(sc->curve) || st->boostlevel > 0.f
 					|| bc_fabsf(sc->turnspeed - 1.f) > 0.001f || bc_fabsf(sc->verticalsens - 1.f) > 0.001f)) {
 			*analogturn = 0;
 			*analogpitch = 0;

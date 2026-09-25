@@ -81,14 +81,17 @@ struct weightyaimcfg {
 	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
 };
 
-#define WEIGHTYAIM_CURVE_ORIGINAL 0 // the game's response: squared, maxes out early (ignores the deadzones below)
+#define WEIGHTYAIM_CURVE_ORIGINAL 0 // the original game on an N64-range stick: squared, full speed near full tilt (ignores the deadzones below)
 #define WEIGHTYAIM_CURVE_LINEAR   1
 #define WEIGHTYAIM_CURVE_BALANCED 2 // between linear and the original
 #define WEIGHTYAIM_CURVE_CUSTOM1  3 // cubic bezier from (0,0) to (1,1), like DS4Windows;
 #define WEIGHTYAIM_CURVE_CUSTOM2  4 // three custom curves, each remembers its own points
 #define WEIGHTYAIM_CURVE_CUSTOM3  5
-#define WEIGHTYAIM_NUM_CURVES     6
-#define WEIGHTYAIM_IS_CUSTOM_CURVE(c) ((c) >= WEIGHTYAIM_CURVE_CUSTOM1)
+#define WEIGHTYAIM_CURVE_SOURCEPORT 6 // the unmodded port: same curve, but the stick reaches full speed at about half tilt
+#define WEIGHTYAIM_NUM_CURVES     7
+#define WEIGHTYAIM_IS_CUSTOM_CURVE(c) ((c) >= WEIGHTYAIM_CURVE_CUSTOM1 && (c) <= WEIGHTYAIM_CURVE_CUSTOM3)
+#define WEIGHTYAIM_IS_NATIVE_CURVE(c) ((c) == WEIGHTYAIM_CURVE_ORIGINAL || (c) == WEIGHTYAIM_CURVE_SOURCEPORT)
+#define WEIGHTYAIM_N64_STICK_MAX  80.f // a real N64 stick at full tilt; the port maps full tilt to 127
 
 #define WEIGHTYAIM_BOOST_OFF     0
 #define WEIGHTYAIM_BOOST_INSTANT 1 // full boost the moment the stick hits the threshold
@@ -119,6 +122,7 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
+s32 weightyAimStickRange(s32 v); // N64 stick range for the Original curve and Force Original
 extern s32 g_WeightyAimForceOriginal;       // Force Original Aim & Settings (all players): 1:1 with the original game
 extern s32 g_WeightyAimForceMouseGyroStick; // with it: mouse and gyro act as a stick (capped at full tilt)
 extern s32 g_WeightyAimShowAdvancedFeel; // Aim & Camera Feel shows the fine-tuning sliders

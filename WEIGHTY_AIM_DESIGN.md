@@ -126,6 +126,16 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   look rate and turned back into a stick value (`weightyAimVirtualStick()`),
   capped at full tilt and rounded to whole stick steps, so they can't turn
   faster than a stick. Mouse is still more precise for tiny moves.
+- **Stick range:** the port maps a modern stick at full tilt to 127, but a
+  real N64 stick reaches about 80, and the game's curve hits full speed at
+  70. So the unmodded port maxes out at about half tilt and feels twitchy.
+  `weightyAimStickRange()` (hooked in `bondmove.c` where the sticks are
+  read) scales sticks to the N64 range (x80/127, like emulators) for the
+  **Original** curve and under Force Original Aim & Settings. This covers
+  turning, aim-mode edge turning and walking. **Source Port** is the same
+  curve without the scaling, i.e. the unmodded port. Saved curve numbers are
+  unchanged (Source Port is 6); the menu lists it second via
+  `g_WeightyAimCurveOrder`.
 - **Reticle...** page: Hip-Fire Reticle, Reticle While Aiming, and the
   port's own reticle settings (Size, Colour & Opacity, Colour by Health),
   shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
