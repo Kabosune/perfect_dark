@@ -54,8 +54,8 @@ struct weightyaimcfg g_WeightyAimCfg[4];
 struct weightyaimcfg g_WeightyAimCustomCfg[4][3];
 f32 g_WeightyAimAssistStrength[4];
 s32 g_WeightyAimShowAdvancedFeel = 0; // Aim & Camera Feel: show the fine-tuning sliders too
-s32 g_WeightyAimForceOriginal = 0;     // Force Original Aiming: 1:1 with the original game for everyone
-s32 g_WeightyAimForceMouseGyroStick = 0; // with Force Original Aiming: mouse and gyro act as a stick
+s32 g_WeightyAimForceOriginal = 0;     // Force Original Aim & Settings: 1:1 with the original game for everyone
+s32 g_WeightyAimForceMouseGyroStick = 0; // with Force Original Aim & Settings: mouse and gyro act as a stick
 struct weightyaimgyrocfg g_WeightyAimGyroCfg[4];
 
 const char *g_WeightyAimGyroModeNames[WEIGHTYAIM_NUM_GYROMODES] = {
@@ -444,7 +444,7 @@ void weightyAimInit(void)
 
 static inline bool weightyAimCfgEnabled(const struct weightyaimcfg *cfg)
 {
-	// Force Original Aiming turns every Weighty Aim feature off, whatever the preset
+	// Force Original Aim & Settings turns every Weighty Aim feature off, whatever the preset
 	return !g_WeightyAimForceOriginal && cfg->preset != WEIGHTYAIM_PRESET_CLASSIC;
 }
 
@@ -851,7 +851,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		// curve, turn boost, or a sensitivity other than 1x): still apply it.
 		// With analog zeroed, PD computes speed = (freelook * mlookscale) * fovscale.
 		if (g_WeightyAimForceOriginal) {
-			// Force Original Aiming: the game's own stick handling, no custom
+			// Force Original Aim & Settings: the game's own stick handling, no custom
 			// stick response, Look Acceleration or gyro. The mouse stays as the
 			// port has it unless Mouse & Gyro as Stick is on: then mouse and gyro
 			// are folded into the stick value, so they can't turn faster than a
@@ -875,7 +875,7 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			*freelookdy += stickrate[1] / mlookscale;
 		}
 
-		// gyro works with the Classic preset too (not with Force Original Aiming)
+		// gyro works with the Classic preset too (not with Force Original Aim & Settings)
 		if (canlook && !g_WeightyAimForceOriginal && (gyrodeg[0] != 0.f || gyrodeg[1] != 0.f)) {
 			*freelookdx += gyrodeg[0] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);
 			*freelookdy -= gyrodeg[1] / (DEG_PER_SPEED_TICK * dt60 * mlookscale * fovscale);

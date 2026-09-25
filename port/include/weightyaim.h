@@ -119,7 +119,7 @@ struct weightyaimstickcfg {
 	f32 boostvertical;   // share of the boost applied to looking up/down (0..1)
 };
 
-extern s32 g_WeightyAimForceOriginal;       // Force Original Aiming (all players): 1:1 with the original game
+extern s32 g_WeightyAimForceOriginal;       // Force Original Aim & Settings (all players): 1:1 with the original game
 extern s32 g_WeightyAimForceMouseGyroStick; // with it: mouse and gyro act as a stick (capped at full tilt)
 extern s32 g_WeightyAimShowAdvancedFeel; // Aim & Camera Feel shows the fine-tuning sliders
 extern f32 g_WeightyAimAssistStrength[4]; // 0..1 of what the game and difficulty allow (1 = game default, 0 = off)

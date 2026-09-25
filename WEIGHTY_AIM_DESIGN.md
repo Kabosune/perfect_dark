@@ -113,7 +113,7 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
 
 ## 4. Settings, presets and `pd.ini`
 
-- **Force Original Aiming** (top of the main page, `WeightyAim.ForceOriginalAiming`,
+- **Force Original Aim & Settings** (bottom of the main page, `WeightyAim.ForceOriginalAiming`,
   global for all players, saved) is for tournaments: 1:1 with the original
   game whatever anyone's settings are. `weightyAimCfgEnabled()` returns false
   (every Weighty Aim feature off, like Classic), and it also blocks what
@@ -122,13 +122,17 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   (the game's deadzone is forced on). Nothing is overwritten, so unticking
   it brings everyone's setup back. The mouse stays as the port has it.
 - **Force Mouse & Gyro as Stick** (`WeightyAim.ForceMouseGyroAsStick`, shown
-  only with Force Original Aiming): mouse and gyro are added to the stick's
+  only with Force Original Aim & Settings): mouse and gyro are added to the stick's
   look rate and turned back into a stick value (`weightyAimVirtualStick()`),
   capped at full tilt and rounded to whole stick steps, so they can't turn
   faster than a stick. Mouse is still more precise for tiny moves.
+- **Reticle...** page: Hip-Fire Reticle, Reticle While Aiming, and the
+  port's own reticle settings (Size, Colour & Opacity, Colour by Health),
+  shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
+  keys still say crosshair.
 - Aim & Camera Feel shows 7 main sliders (zone width/height, Camera Share,
   Camera Lead, Catch-Up, Catch-Up Delay, Gun Response). The rest are behind
-  the "Show Advanced Feel" tick (`WeightyAim.ShowAdvancedFeel`, saved;
+  the "Show Advanced Feel" tick (at the bottom of the page) (`WeightyAim.ShowAdvancedFeel`, saved;
   `WEIGHTYAIM_FEEL_NUM_MAIN` in `weightyaimmenu.c`).
 - The aim-feel settings live in `struct weightyaimcfg`, one per preset. The
   field table `g_WeightyAimCfgFields` (the `WA_FLOAT` and `WA_INT` macros)

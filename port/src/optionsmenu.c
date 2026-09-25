@@ -365,7 +365,7 @@ struct menuitem g_ExtendedMouseMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Crosshair Speed X",
+		(uintptr_t)"Reticle Speed X",
 		1000,
 		menuhandlerMouseAimSpeedX,
 	},
@@ -373,7 +373,7 @@ struct menuitem g_ExtendedMouseMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Crosshair Speed Y",
+		(uintptr_t)"Reticle Speed Y",
 		1000,
 		menuhandlerMouseAimSpeedY,
 	},
@@ -1516,7 +1516,7 @@ static MenuItemHandlerResult menuhandlerCrosshairColorPreview(s32 operation, str
 	return 0;
 }
 
-static MenuItemHandlerResult menuhandlerCrosshairSize(s32 operation, struct menuitem *item, union handlerdata *data)
+MenuItemHandlerResult menuhandlerCrosshairSize(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
 	case MENUOP_GETSLIDER:
@@ -1530,7 +1530,7 @@ static MenuItemHandlerResult menuhandlerCrosshairSize(s32 operation, struct menu
 	return 0;
 }
 
-static MenuItemHandlerResult menuhandlerCrosshairHealth(s32 operation, struct menuitem *item, union handlerdata *data)
+MenuItemHandlerResult menuhandlerCrosshairHealth(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	static const char *opts[] = {
 		"Off",
@@ -1583,7 +1583,7 @@ struct menuitem g_ExtendedGameCrosshairColourMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Alpha",
+		(uintptr_t)"Opacity",
 		255,
 		menuhandlerCrosshairA,
 	},
@@ -1624,7 +1624,7 @@ struct menuitem g_ExtendedGameCrosshairColourMenuItems[] = {
 
 struct menudialogdef g_ExtendedGameCrosshairColourMenuDialog = {
 	MENUDIALOGTYPE_DEFAULT,
-	(uintptr_t)"Crosshair Colour",
+	(uintptr_t)"Reticle Colour",
 	g_ExtendedGameCrosshairColourMenuItems,
 	NULL,
 	MENUDIALOGFLAG_LITERAL_TEXT,
@@ -1652,7 +1652,7 @@ struct menuitem g_ExtendedGameMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Crosshair Sway",
+		(uintptr_t)"Reticle Sway",
 		20,
 		menuhandlerCrosshairSway,
 	},
@@ -1660,7 +1660,7 @@ struct menuitem g_ExtendedGameMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Crosshair Edge Deadzone",
+		(uintptr_t)"Reticle Edge Deadzone",
 		10,
 		menuhandlerCrosshairEdgeBoundary,
 	},
@@ -1668,7 +1668,7 @@ struct menuitem g_ExtendedGameMenuItems[] = {
 		MENUITEMTYPE_SLIDER,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE,
-		(uintptr_t)"Crosshair Size",
+		(uintptr_t)"Reticle Size",
 		4,
 		menuhandlerCrosshairSize,
 	},
@@ -1676,7 +1676,7 @@ struct menuitem g_ExtendedGameMenuItems[] = {
 		MENUITEMTYPE_SELECTABLE,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG,
-		(uintptr_t)"Crosshair Colour\n",
+		(uintptr_t)"Reticle Colour\n",
 		0,
 		(void*)&g_ExtendedGameCrosshairColourMenuDialog,
 	},
@@ -1684,7 +1684,7 @@ struct menuitem g_ExtendedGameMenuItems[] = {
 		MENUITEMTYPE_DROPDOWN,
 		0,
 		MENUITEMFLAG_LITERAL_TEXT,
-		(uintptr_t)"Crosshair Colour by Health",
+		(uintptr_t)"Reticle Colour by Health",
 		0,
 		menuhandlerCrosshairHealth,
 	},

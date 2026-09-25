@@ -19,9 +19,11 @@
  *   Aim & Camera Feel...   free-aim zone, gun weight, camera lead, sway
  *   Stick Response...      look curve, deadzones, max turn speed
  *   Turn Boost...          extra turn speed at full stick
- *   Aim Mode...            what holding aim does: aim mode, aim down sights, crosshair/laser
+ *   Aim Mode...            what holding aim does: aim mode, aim down sights, laser
  *   Gyro Aim...            motion controls (Advanced... inside)
- *   Crosshair / Laser Sight / Laser Dot / Aim Assist / Debug Log / Reset
+ *   Reticle...             on/off (hip-fire, aiming), size, colour & opacity
+ *   Laser Sight / Laser Dot / Aim Assist / Debug Log / Reset
+ *   Force Original Aim & Settings / Force Mouse & Gyro as Stick (tournaments)
  *
  * Sliders are table driven: each page has a table of weightyaimslider rows
  * that must be in the same order as its slider items. Adding a tunable is:
@@ -121,7 +123,6 @@ static MenuItemHandlerResult menuhandlerWeightyAimShowAdvancedFeel(s32 operation
 
 struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Show Advanced Feel", 0, menuhandlerWeightyAimShowAdvancedFeel },
 	// order must match g_WeightyAimFeelSliders
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),   // 0 - 20 deg
 	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),  // 0 - 15 deg
@@ -137,6 +138,8 @@ struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Turn Drag", 20),             // 0 - 1
 	WEIGHTYAIM_SLIDER("Camera Sway", 30),           // 0 - 1.5 deg
 	WEIGHTYAIM_SLIDER("Walk Sway", 30),             // 0 - 3 deg
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Show Advanced Feel", 0, menuhandlerWeightyAimShowAdvancedFeel },
 	WEIGHTYAIM_BACK,
 };
 
@@ -540,12 +543,11 @@ struct menuitem g_WeightyAimAdsMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Controller: Move While Aiming", 0, menuhandlerWeightyAimMovement },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Keyboard: Move While Aiming", 0, menuhandlerWeightyAimKeyboardMove },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Aim Down Sights", 0, menuhandlerWeightyAimAds },
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Crosshair While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot While Aiming", 0, menuhandlerWeightyAimAimLaserDot },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Beam While Aiming", 0, menuhandlerWeightyAimAimLaserBeam },
 	// order must match g_WeightyAimAdsSliders
 	WEIGHTYAIM_SLIDER("Aim Sensitivity", 16),           // 20 - 100 %
-	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the crosshair keeps moving freely
+	WEIGHTYAIM_SLIDER("Aim Feel While Aiming", 20),     // 0 - 100 %: how much the reticle keeps moving freely
 	WEIGHTYAIM_SLIDER("Sway While Aiming", 20),         // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Move Speed While Aiming", 16),   // 20 - 100 %
 	WEIGHTYAIM_SLIDER("Sights Zoom", 40),               // 1 - 3x, any aiming
@@ -733,13 +735,13 @@ extern struct menuitem g_WeightyAimMenuItems[];
  */
 
 static const struct weightyaimsliderpage g_WeightyAimSliderPages[] = {
-	{ g_WeightyAimFeelMenuItems,  2, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimFeelMenuItems,  1, g_WeightyAimFeelSliders,  ARRAYCOUNT(g_WeightyAimFeelSliders),  weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 	{ g_WeightyAimStickMenuItems, 2, g_WeightyAimStickSliders, ARRAYCOUNT(g_WeightyAimStickSliders), weightyAimMenuStickCfgVoid, weightyAimStickChanged },
 	{ g_WeightyAimBoostMenuItems, 1, g_WeightyAimBoostSliders, ARRAYCOUNT(g_WeightyAimBoostSliders), weightyAimMenuStickCfgVoid, NULL },
 	{ g_WeightyAimGyroMenuItems,  2, g_WeightyAimGyroSliders,    ARRAYCOUNT(g_WeightyAimGyroSliders),    weightyAimMenuGyroCfgVoid,  NULL },
 	{ g_WeightyAimGyroAdvMenuItems, 2, g_WeightyAimGyroAdvSliders, ARRAYCOUNT(g_WeightyAimGyroAdvSliders), weightyAimMenuGyroCfgVoid, NULL },
-	{ g_WeightyAimMenuItems,     15, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
-	{ g_WeightyAimAdsMenuItems,   8, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
+	{ g_WeightyAimMenuItems,     12, g_WeightyAimAssistSliders,  ARRAYCOUNT(g_WeightyAimAssistSliders),  weightyAimMenuAssistVoid,   NULL },
+	{ g_WeightyAimAdsMenuItems,   7, g_WeightyAimAdsSliders,   ARRAYCOUNT(g_WeightyAimAdsSliders),   weightyAimMenuCfgVoid,      weightyAimFeelChanged },
 };
 
 static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct menuitem *item, union handlerdata *data)
@@ -919,6 +921,34 @@ static MenuItemHandlerResult menuhandlerWeightyAimReset(s32 operation, struct me
 #define WEIGHTYAIM_SUBPAGE(label, dialog) \
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SELECTABLE_OPENSDIALOG, (uintptr_t)(label), 0, (void *)&(dialog) }
 
+/* ------------------------------------------------------------------------
+ * Reticle
+ */
+
+// the port's own reticle settings (Extended -> Game), shared here
+extern MenuItemHandlerResult menuhandlerCrosshairSize(s32 operation, struct menuitem *item, union handlerdata *data);
+extern MenuItemHandlerResult menuhandlerCrosshairHealth(s32 operation, struct menuitem *item, union handlerdata *data);
+extern struct menudialogdef g_ExtendedGameCrosshairColourMenuDialog;
+
+struct menuitem g_WeightyAimReticleMenuItems[] = {
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Reticle", 0, menuhandlerWeightyAimCrosshair },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
+	{ MENUITEMTYPE_SLIDER, 0, MENUITEMFLAG_LITERAL_TEXT | MENUITEMFLAG_SLIDER_WIDE, (uintptr_t)"Reticle Size", 4, menuhandlerCrosshairSize },
+	WEIGHTYAIM_SUBPAGE("Reticle Colour & Opacity...\n", g_ExtendedGameCrosshairColourMenuDialog),
+	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle Colour by Health", 0, menuhandlerCrosshairHealth },
+	WEIGHTYAIM_BACK,
+};
+
+struct menudialogdef g_WeightyAimReticleMenuDialog = {
+	MENUDIALOGTYPE_DEFAULT,
+	(uintptr_t)"Reticle",
+	g_WeightyAimReticleMenuItems,
+	NULL,
+	MENUDIALOGFLAG_LITERAL_TEXT,
+	NULL,
+};
+
 static MenuItemHandlerResult menuhandlerWeightyAimForceOriginal(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -942,7 +972,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimForceMouseGyroStick(s32 operat
 		break;
 	case MENUOP_CHECKHIDDEN:
 	case MENUOP_CHECKDISABLED:
-		// only means something with Force Original Aiming on
+		// only means something with Force Original Aim & Settings on
 		return !g_WeightyAimForceOriginal;
 	}
 
@@ -950,10 +980,6 @@ static MenuItemHandlerResult menuhandlerWeightyAimForceMouseGyroStick(s32 operat
 }
 
 struct menuitem g_WeightyAimMenuItems[] = {
-	// for tournaments: 1:1 with the original game for every player, whatever their settings
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Original Aiming", 0, menuhandlerWeightyAimForceOriginal },
-	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Mouse & Gyro as Stick", 0, menuhandlerWeightyAimForceMouseGyroStick },
-	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_PRESET_ITEM,
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	WEIGHTYAIM_SUBPAGE("Aim & Camera Feel...\n", g_WeightyAimFeelMenuDialog),
@@ -961,15 +987,19 @@ struct menuitem g_WeightyAimMenuItems[] = {
 	WEIGHTYAIM_SUBPAGE("Look Acceleration...\n", g_WeightyAimBoostMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Aim Mode...\n", g_WeightyAimAdsMenuDialog),
 	WEIGHTYAIM_SUBPAGE("Gyro Aim...\n", g_WeightyAimGyroMenuDialog),
+	WEIGHTYAIM_SUBPAGE("Reticle...\n", g_WeightyAimReticleMenuDialog),
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
-	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Crosshair", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Beam", 0, menuhandlerWeightyAimLaser },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Laser Dot", 0, menuhandlerWeightyAimLaserDot },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Laser Dot Stays While Firing", 0, menuhandlerWeightyAimLaserPersist },
-	WEIGHTYAIM_SLIDER("Aim Assist", 20),     // 0 - 100 % of the game's own
+	WEIGHTYAIM_SLIDER("Aim Assist", 20),     // 0 - 100 % of the game's own (index must match g_WeightyAimSliderPages)
 
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Debug Log", 0, menuhandlerWeightyAimDebugLog },
 	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset to Weighty Preset\n", 0, menuhandlerWeightyAimReset },
+	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
+	// for tournaments: 1:1 with the original game for every player, whatever their settings
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Original Aim & Settings", 0, menuhandlerWeightyAimForceOriginal },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Force Mouse & Gyro as Stick", 0, menuhandlerWeightyAimForceMouseGyroStick },
 	WEIGHTYAIM_BACK,
 };
 
