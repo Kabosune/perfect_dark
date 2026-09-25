@@ -141,7 +141,7 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
   keys still say crosshair.
 - **Reticle Opacity** edits the alpha byte of the port's reticle colour.
-  **Smooth Reticle** (per player, on by default, off under Force Original):
+  **Smooth Reticle** (per player, off by default, forced off under Force Original):
   the reticle normally snaps to whole N64 pixels (about 4.5 screen pixels at
   1080p). `sight.c` now draws the hip-fire target and the aimer box at the
   whole pixel plus a quarter-pixel `gDPSetSubpixelOffsetEXT` offset, the

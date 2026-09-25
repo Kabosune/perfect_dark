@@ -2012,7 +2012,7 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterInt(strFmt("WeightyAim.Player%d.LastCustom", i), &g_WeightyAimLastCustom[j], 0, WEIGHTYAIM_NUM_CUSTOM - 1);
 		g_WeightyAimAssistStrength[j] = 1.f;
 		configRegisterFloat(strFmt("WeightyAim.Player%d.AimAssistStrength", i), &g_WeightyAimAssistStrength[j], 0.f, 1.f);
-		g_WeightyAimSmoothReticle[j] = 1;
+		g_WeightyAimSmoothReticle[j] = 0;
 		configRegisterInt(strFmt("WeightyAim.Player%d.SmoothReticle", i), &g_WeightyAimSmoothReticle[j], 0, 1);
 
 		g_WeightyAimGyroCfg[j] = g_WeightyAimGyroDefaults;
