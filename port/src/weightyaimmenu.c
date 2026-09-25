@@ -89,7 +89,7 @@ static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct m
 
 // The first WEIGHTYAIM_FEEL_NUM_MAIN sliders are always shown; the rest are
 // fine-tuning, shown with the "Show Advanced Feel" tick.
-#define WEIGHTYAIM_FEEL_NUM_MAIN 7
+#define WEIGHTYAIM_FEEL_NUM_MAIN 8
 
 static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(deadzonex),     0.5f,  0.f,  "%.1f deg", NULL,  0 },
@@ -99,6 +99,7 @@ static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(recenterspeed), 0.1f,  0.f,  "%.1f",     "Off", 0 },
 	{ AIMFIELD(recenterdelay), 0.05f, 0.f,  "%.2fs",    NULL,  0 },
 	{ AIMFIELD(gunresponse),   0.5f,  1.f,  "%.1f Hz",  NULL,  0 },
+	{ AIMFIELD(edgeturnspeed), 10.f,  0.f,  "%.0f deg/s", "Off", 0 },
 	// advanced
 	{ AIMFIELD(edgesmoothing), 0.02f, 0.f,  "%.2fs",    "Off", 0 },
 	{ AIMFIELD(recentersmooth), 0.05f, 0.f, "%.2fs",    "Off", 0 },
@@ -106,7 +107,31 @@ static const struct weightyaimslider g_WeightyAimFeelSliders[] = {
 	{ AIMFIELD(turndrag),      0.05f, 0.f,  "%.2f",     NULL,  0 },
 	{ AIMFIELD(camerasway),    0.05f, 0.f,  "%.2f deg", "Off", 0 },
 	{ AIMFIELD(walksway),      0.1f,  0.f,  "%.1f deg", "Off", 0 },
+	{ AIMFIELD(edgeband),      0.05f, 0.05f, "%.0f%%",  NULL,  1 },
+	{ AIMFIELD(edgeinfluence), 0.05f, 0.f,  "%.0f%%",   "Off", 1 },
+	{ AIMFIELD(edgevertical),  0.05f, 0.f,  "%.0f%%",   "Off", 1 },
 };
+
+// Edge Auto-Turn inputs (advanced; hidden unless "Show Advanced Feel" is ticked)
+#define WEIGHTYAIM_FEEL_ADV_CHECKBOX_HANDLER(fn, field) \
+	static MenuItemHandlerResult fn(s32 operation, struct menuitem *item, union handlerdata *data) \
+	{ \
+		switch (operation) { \
+		case MENUOP_GET: return weightyAimMenuCfg()->field; \
+		case MENUOP_SET: \
+			weightyAimMenuCfg()->field = data->checkbox.value ? 1 : 0; \
+			weightyAimAimSettingsChanged(optionsGetExtMenuPlayer()); \
+			break; \
+		case MENUOP_CHECKHIDDEN: \
+		case MENUOP_CHECKDISABLED: \
+			return !g_WeightyAimShowAdvancedFeel; \
+		} \
+		return 0; \
+	}
+
+WEIGHTYAIM_FEEL_ADV_CHECKBOX_HANDLER(menuhandlerWeightyAimEdgeMouse, edgemouse)
+WEIGHTYAIM_FEEL_ADV_CHECKBOX_HANDLER(menuhandlerWeightyAimEdgeGyro, edgegyro)
+WEIGHTYAIM_FEEL_ADV_CHECKBOX_HANDLER(menuhandlerWeightyAimEdgeStick, edgestick)
 
 static MenuItemHandlerResult menuhandlerWeightyAimShowAdvancedFeel(s32 operation, struct menuitem *item, union handlerdata *data)
 {
@@ -124,13 +149,14 @@ static MenuItemHandlerResult menuhandlerWeightyAimShowAdvancedFeel(s32 operation
 struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_PRESET_ITEM,
 	// order must match g_WeightyAimFeelSliders
-	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 40),   // 0 - 20 deg
-	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 30),  // 0 - 15 deg
+	WEIGHTYAIM_SLIDER("Free-Aim Zone Width", 80),   // 0 - 40 deg
+	WEIGHTYAIM_SLIDER("Free-Aim Zone Height", 50),  // 0 - 25 deg
 	WEIGHTYAIM_SLIDER("Camera Share", 20),          // 0 - 100 %
 	WEIGHTYAIM_SLIDER("Camera Lead", 30),           // 0 - 3
 	WEIGHTYAIM_SLIDER("Camera Catch-Up", 50),       // 0 - 5
 	WEIGHTYAIM_SLIDER("Catch-Up Delay", 40),        // 0 - 2 s
 	WEIGHTYAIM_SLIDER("Gun Response", 40),          // 1 - 20 Hz
+	WEIGHTYAIM_SLIDER("Edge Auto-Turn", 18),        // 0 - 180 deg/s at the edge (Arcade)
 	// advanced (hidden unless "Show Advanced Feel" is ticked)
 	WEIGHTYAIM_SLIDER("Edge Smoothing", 25),        // 0 - 0.5 s
 	WEIGHTYAIM_SLIDER("Catch-Up Smoothing", 20),    // 0 - 1 s: eases the camera into re-centring
@@ -138,6 +164,12 @@ struct menuitem g_WeightyAimFeelMenuItems[] = {
 	WEIGHTYAIM_SLIDER("Turn Drag", 20),             // 0 - 1
 	WEIGHTYAIM_SLIDER("Camera Sway", 30),           // 0 - 1.5 deg
 	WEIGHTYAIM_SLIDER("Walk Sway", 30),             // 0 - 3 deg
+	WEIGHTYAIM_SLIDER("Edge Auto-Turn Band", 12),   // 5 - 60 % of the zone
+	WEIGHTYAIM_SLIDER("Edge Input Influence", 20),  // 0 - 100 %: your own push while auto-turning
+	WEIGHTYAIM_SLIDER("Edge Vertical Turn", 20),    // 0 - 100 % of the horizontal speed
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Edge Auto-Turn: Mouse", 0, menuhandlerWeightyAimEdgeMouse },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Edge Auto-Turn: Gyro", 0, menuhandlerWeightyAimEdgeGyro },
+	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Edge Auto-Turn: Stick", 0, menuhandlerWeightyAimEdgeStick },
 	{ MENUITEMTYPE_SEPARATOR, 0, 0, 0, 0, NULL },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Show Advanced Feel", 0, menuhandlerWeightyAimShowAdvancedFeel },
 	WEIGHTYAIM_BACK,
@@ -829,6 +861,19 @@ static MenuItemHandlerResult menuhandlerWeightyAimSlider(s32 operation, struct m
  * Main Weighty Aim page
  */
 
+// menu order (saved numbers stay as they were, so Arcade is listed third
+// although it was added last)
+static const s32 g_WeightyAimPresetOrder[WEIGHTYAIM_NUM_PRESETS] = {
+	WEIGHTYAIM_PRESET_WEIGHTY,
+	WEIGHTYAIM_PRESET_IMMERSIVE,
+	WEIGHTYAIM_PRESET_ARCADE,
+	WEIGHTYAIM_PRESET_BORING,
+	WEIGHTYAIM_PRESET_CLASSIC,
+	WEIGHTYAIM_PRESET_CUSTOM1,
+	WEIGHTYAIM_PRESET_CUSTOM2,
+	WEIGHTYAIM_PRESET_CUSTOM3,
+};
+
 static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct menuitem *item, union handlerdata *data)
 {
 	switch (operation) {
@@ -836,12 +881,18 @@ static MenuItemHandlerResult menuhandlerWeightyAimPreset(s32 operation, struct m
 		data->dropdown.value = WEIGHTYAIM_NUM_PRESETS;
 		break;
 	case MENUOP_GETOPTIONTEXT:
-		return (intptr_t)g_WeightyAimPresetNames[data->dropdown.value];
+		return (intptr_t)g_WeightyAimPresetNames[g_WeightyAimPresetOrder[data->dropdown.value % WEIGHTYAIM_NUM_PRESETS]];
 	case MENUOP_SET:
-		weightyAimApplyPreset(optionsGetExtMenuPlayer(), data->dropdown.value);
+		weightyAimApplyPreset(optionsGetExtMenuPlayer(), g_WeightyAimPresetOrder[data->dropdown.value % WEIGHTYAIM_NUM_PRESETS]);
 		break;
 	case MENUOP_GETSELECTEDINDEX:
-		data->dropdown.value = weightyAimMenuCfg()->preset;
+		data->dropdown.value = 0;
+		for (s32 i = 0; i < WEIGHTYAIM_NUM_PRESETS; i++) {
+			if (g_WeightyAimPresetOrder[i] == weightyAimMenuCfg()->preset) {
+				data->dropdown.value = i;
+				break;
+			}
+		}
 		break;
 	}
 

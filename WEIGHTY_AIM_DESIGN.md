@@ -140,6 +140,22 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
   port's own reticle settings (Size, Colour & Opacity, Colour by Health),
   shared from `optionsmenu.c`. The UI says "reticle"; code and `pd.ini`
   keys still say crosshair.
+- **Edge Auto-Turn** (`edgeturnspeed`, 0 = off; on only in Arcade): while
+  the reticle rests in the outer band of the zone (`edgeband`), the view keeps
+  turning on its own, eased by smoothstep across the band, after a 0.15s
+  delay and a 0.2s ease-in. Vertical is scaled by `edgevertical`. It applies
+  to the input that moved the reticle last (`lastinput`; per-preset ticks
+  `edgemouse`/`edgegyro` on, `edgestick` off), and not while aiming down
+  sights. While it applies, pushing past the edge only turns by
+  `edgeinfluence` (0.25), and Camera Lead and Catch-Up pause in the band.
+  This deliberately breaks "aim always adds up to your input", like Wii
+  shooters.
+- **Reticle profiles:** reticle size, opacity and Smooth Reticle are
+  per-player port settings, not preset fields. `reticleprofile` (1 in
+  Arcade, copied into customs made from it) picks one of two saved sets;
+  `weightyAimSyncReticle()` swaps them when the preset's profile changes
+  (from `weightyAimApplyPreset()` and each frame). Arcade's defaults: size 3,
+  opacity 0x50, smooth on. Classic uses the normal profile.
 - **Reticle Opacity** edits the alpha byte of the port's reticle colour.
   **Smooth Reticle** (per player, off by default, forced off under Force Original):
   the reticle normally snaps to whole N64 pixels (about 4.5 screen pixels at
@@ -176,6 +192,11 @@ Main preset traits:
   share 0.5, gun response 8.5, damping 0.7, turn drag 0.35, catch-up 0.4.
 - **Immersive:** Modern, camera share 0.5, stick movement, no crosshair while aiming, lasers
   on, slower gun (4.6), more drag (0.6), less sway.
+- **Arcade:** Wii / rail-shooter style, "point at the screen". Big zone
+  (28/18 deg), camera share 0, no lead or catch-up, light fast gun (14 Hz,
+  damping 0.85, drag 0.1), little sway, Edge Auto-Turn 90 deg/s. Has its own
+  reticle profile. Listed third in the menu (saved number 7, after the
+  customs; `g_WeightyAimPresetOrder`).
 - **Boring:** Modern, full movement, camera share 1 (no free-aim feel).
 - **Classic:** mod off, the game's original aiming.
 

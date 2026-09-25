@@ -25,9 +25,10 @@
 #define WEIGHTYAIM_PRESET_CUSTOM1 4 // your own profiles; each one remembers its settings
 #define WEIGHTYAIM_PRESET_CUSTOM2 5
 #define WEIGHTYAIM_PRESET_CUSTOM3 6
-#define WEIGHTYAIM_NUM_PRESETS    7
+#define WEIGHTYAIM_PRESET_ARCADE  7 // Wii / rail-shooter style: point at the screen, the view turns at the edges
+#define WEIGHTYAIM_NUM_PRESETS    8
 #define WEIGHTYAIM_NUM_CUSTOM     3
-#define WEIGHTYAIM_IS_CUSTOM(p)   ((p) >= WEIGHTYAIM_PRESET_CUSTOM1)
+#define WEIGHTYAIM_IS_CUSTOM(p)   ((p) >= WEIGHTYAIM_PRESET_CUSTOM1 && (p) <= WEIGHTYAIM_PRESET_CUSTOM3)
 
 #define WEIGHTYAIM_CROSSHAIR_ALWAYS   0 // shown while hip-firing ("On")
 #define WEIGHTYAIM_CROSSHAIR_AIMONLY  1 // hidden while hip-firing ("Off"); aiming has its own setting
@@ -79,6 +80,15 @@ struct weightyaimcfg {
 	f32 adsheight;       // how high the gun sits when aiming down sights (screen units, + = higher)
 	f32 adsmovespeed;    // Move While Aiming: walking speed while aiming, share of normal (0..1)
 	f32 adssens;         // look sensitivity while aiming, share of normal (0..1)
+	// Edge Auto-Turn (Wii-shooter style): the view keeps turning while the reticle rests at the edge
+	f32 edgeturnspeed;   // degrees/second at the very edge (0 = off)
+	f32 edgeband;        // width of the edge band that turns, share of the zone (0.05..0.9)
+	f32 edgeinfluence;   // share of your own push past the edge that still turns while auto-turning (0..1)
+	f32 edgevertical;    // vertical auto-turn strength, share of horizontal (0..1)
+	s32 edgemouse;       // auto-turn when the mouse moved the reticle last
+	s32 edgegyro;        // ... the gyro
+	s32 edgestick;       // ... the stick
+	s32 reticleprofile;  // 0 = your normal reticle settings, 1 = Arcade's own reticle settings
 };
 
 #define WEIGHTYAIM_CURVE_ORIGINAL 0 // the original game on an N64-range stick: squared, full speed near full tilt (ignores the deadzones below)
@@ -282,7 +292,8 @@ void weightyAimGetCrosshair(f32 *x, f32 *y);
  */
 bool weightyAimHideCrosshair(void);
 bool weightyAimForceCrosshair(void);
-bool weightyAimSmoothReticle(void); // Smooth Reticle: draw at quarter-pixel steps instead of whole N64 pixels
+bool weightyAimSmoothReticle(void);
+void weightyAimSyncReticle(s32 cfgindex); // swap in the reticle settings of the preset's reticle profile // Smooth Reticle: draw at quarter-pixel steps instead of whole N64 pixels
 extern s32 g_WeightyAimSmoothReticle[4];
 
 /*

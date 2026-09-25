@@ -233,6 +233,11 @@ void weightyAimResetBoostDefaults(s32 cfgindex)
 s32 g_WeightyAimDebugLog = 0;
 s32 g_WeightyAimDebugPattern = 0;
 
+#define WEIGHTYAIM_INPUT_STICK 0
+#define WEIGHTYAIM_INPUT_MOUSE 1
+#define WEIGHTYAIM_INPUT_GYRO  2
+#define WEIGHTYAIM_EDGE_TURN_DELAY 0.15f // seconds at the edge before Edge Auto-Turn starts
+#define WEIGHTYAIM_EDGE_TURN_EASE  0.2f  // seconds for it to reach full speed after that
 #define WEIGHTYAIM_LEAD_EASE_IN 0.3f // seconds for Camera Lead to fade back in after an edge turn
 #define WEIGHTYAIM_LEAD_FULL_INPUT 0.5f // look speed (fraction of full stick) that gives full Camera Lead
 #define WEIGHTYAIM_LEAD_INPUT_SMOOTH 0.1f // seconds: Camera Lead follows your input with a short tail
@@ -245,6 +250,8 @@ struct weightyaimstate {
 	f32 idletime;    // seconds since the last look input
 	f32 leadramp;    // 0..1: Camera Lead eases back in after an edge turn instead of kicking in at full strength
 	f32 leadinput;   // 0..1: how hard you're aiming (smoothed); Camera Lead scales with it
+	s32 lastinput;   // WEIGHTYAIM_INPUT_*: what moved the reticle last (Edge Auto-Turn)
+	f32 edgetime;    // seconds the reticle has rested in the edge band (Edge Auto-Turn)
 	f32 boostheld;   // seconds the stick has been held past the boost threshold
 	f32 boostlevel;  // current turn boost, 0..1
 	bool aiming;     // aim button held and Weighty Aim drives the look (Modern), this frame
@@ -276,6 +283,7 @@ const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 	"Custom 1",
 	"Custom 2",
 	"Custom 3",
+	"Arcade",
 };
 
 // Weighty: free-aim with a crosshair, a gun with some heft, a hint of sway.
@@ -283,6 +291,14 @@ const char *g_WeightyAimPresetNames[WEIGHTYAIM_NUM_PRESETS] = {
 // keeping the free-aim crosshair that isn't locked to the centre.
 static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 	.preset = WEIGHTYAIM_PRESET_WEIGHTY,
+	.edgeturnspeed = 0.f,
+	.edgeband = 0.2f,
+	.edgeinfluence = 0.25f,
+	.edgevertical = 0.4f,
+	.edgemouse = 1,
+	.edgegyro = 1,
+	.edgestick = 0,
+	.reticleprofile = 0,
 	.deadzonex = 7.5f,
 	.deadzoney = 4.5f,
 	.camerashare = 0.5f,
@@ -320,6 +336,14 @@ static const struct weightyaimcfg g_WeightyAimPresetWeighty = {
 // (the gun itself is kept a little steadier so it isn't too shaky)
 static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 	.preset = WEIGHTYAIM_PRESET_IMMERSIVE,
+	.edgeturnspeed = 0.f,
+	.edgeband = 0.2f,
+	.edgeinfluence = 0.25f,
+	.edgevertical = 0.4f,
+	.edgemouse = 1,
+	.edgegyro = 1,
+	.edgestick = 0,
+	.reticleprofile = 0,
 	.deadzonex = 11.f,
 	.deadzoney = 6.5f,
 	.camerashare = 0.5f,
@@ -357,6 +381,14 @@ static const struct weightyaimcfg g_WeightyAimPresetImmersive = {
 // follows the stick directly, no gun lag, no sway.
 static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.preset = WEIGHTYAIM_PRESET_BORING,
+	.edgeturnspeed = 0.f,
+	.edgeband = 0.2f,
+	.edgeinfluence = 0.25f,
+	.edgevertical = 0.4f,
+	.edgemouse = 1,
+	.edgegyro = 1,
+	.edgestick = 0,
+	.reticleprofile = 0,
 	.deadzonex = 0.f,
 	.deadzoney = 0.f,
 	.camerashare = 1.f,
@@ -390,6 +422,93 @@ static const struct weightyaimcfg g_WeightyAimPresetBoring = {
 	.adssens = 0.65f,
 };
 
+// Arcade: Wii and rail-shooter style. You point at the screen: a big free-aim
+// zone, no camera share or catch-up, a light gun that snaps to where you point,
+// and the view turns on its own while the reticle rests at the edge (mouse and
+// gyro). Has its own reticle settings: smooth, a size bigger, more opaque.
+static const struct weightyaimcfg g_WeightyAimPresetArcade = {
+	.preset = WEIGHTYAIM_PRESET_ARCADE,
+	.deadzonex = 28.f,
+	.deadzoney = 18.f,
+	.camerashare = 0.f,
+	.cameralead = 0.f,
+	.recenterspeed = 0.f,
+	.recenterdelay = 0.25f,
+	.recentersmooth = 0.4f,
+	.gunresponse = 14.f,
+	.gundamping = 0.85f,
+	.turndrag = 0.1f,
+	.edgesmoothing = 0.08f,
+	.camerasway = 0.03f,
+	.walksway = 0.1f,
+	.crosshair = WEIGHTYAIM_CROSSHAIR_ALWAYS,
+	.laser = 0,
+	.laserdot = 0,
+	.laserpersist = 1,
+	.aimmode = WEIGHTYAIM_AIMMODE_MODERN,
+	.aimmovement = WEIGHTYAIM_AIMMOVE_DPAD,
+	.aimkbmove = 1,
+	.aimcrosshair = 1,
+	.aimlaserdot = 0,
+	.aimlaserbeam = 0,
+	.ads = 1,
+	.adszoom = 1.3f,
+	.adstime = 0.18f,
+	.adssway = 0.35f,
+	.adszone = 1.f,
+	.adsheight = -4.f,
+	.adsmovespeed = 0.6f,
+	.adssens = 0.65f,
+	.edgeturnspeed = 90.f,
+	.edgeband = 0.2f,
+	.edgeinfluence = 0.25f,
+	.edgevertical = 0.4f,
+	.edgemouse = 1,
+	.edgegyro = 1,
+	.edgestick = 0,
+	.reticleprofile = 1,
+};
+
+/*
+ * Reticle profiles. Reticle size, opacity and Smooth Reticle are the port's
+ * per-player settings, not part of a preset. Arcade (and custom profiles made
+ * from it) keep their own set: switching to it saves your normal reticle and
+ * loads Arcade's, switching away brings yours back. Tweaks are kept in
+ * whichever profile is live.
+ */
+struct weightyaimreticle {
+	s32 size;
+	s32 opacity;
+	s32 smooth;
+};
+
+static struct weightyaimreticle g_WeightyAimReticleProfiles[4][2];
+static s32 g_WeightyAimReticleLive[4]; // which profile the live reticle settings belong to
+
+void weightyAimSyncReticle(s32 cfgindex)
+{
+	const s32 idx = cfgindex & 3;
+	const s32 want = g_WeightyAimCfg[idx].reticleprofile ? 1 : 0;
+	const s32 have = g_WeightyAimReticleLive[idx] ? 1 : 0;
+	struct extplayerconfig *pc = &g_PlayerExtCfg[idx];
+	struct weightyaimreticle *out = &g_WeightyAimReticleProfiles[idx][have];
+	const struct weightyaimreticle *in = &g_WeightyAimReticleProfiles[idx][want];
+
+	if (want == have) {
+		return;
+	}
+
+	out->size = pc->crosshairsize;
+	out->opacity = pc->crosshaircolour & 0xff;
+	out->smooth = g_WeightyAimSmoothReticle[idx];
+
+	pc->crosshairsize = in->size;
+	pc->crosshaircolour = (pc->crosshaircolour & 0xffffff00) | (u32)(in->opacity & 0xff);
+	g_WeightyAimSmoothReticle[idx] = in->smooth;
+
+	g_WeightyAimReticleLive[idx] = want;
+}
+
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 {
 	const s32 idx = cfgindex & 3;
@@ -405,6 +524,9 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 	case WEIGHTYAIM_PRESET_BORING:
 		*cfg = g_WeightyAimPresetBoring;
 		break;
+	case WEIGHTYAIM_PRESET_ARCADE:
+		*cfg = g_WeightyAimPresetArcade;
+		break;
 	case WEIGHTYAIM_PRESET_CLASSIC:
 		// keep the current values; Classic just switches the mod off, and shows
 		// the original aiming on the Aim Mode page
@@ -412,6 +534,7 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 		cfg->aimmode = WEIGHTYAIM_AIMMODE_CLASSIC;
 		cfg->aimmovement = weightyAimDefaultAimMovement(WEIGHTYAIM_AIMMODE_CLASSIC);
 		cfg->aimkbmove = weightyAimDefaultAimKeyboardMove(WEIGHTYAIM_AIMMODE_CLASSIC);
+		cfg->reticleprofile = 0; // your normal reticle, not Arcade's
 		break;
 	default:
 		if (WEIGHTYAIM_IS_CUSTOM(preset) && preset < WEIGHTYAIM_NUM_PRESETS) {
@@ -422,6 +545,8 @@ void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 		}
 		break;
 	}
+
+	weightyAimSyncReticle(idx);
 }
 
 /**
@@ -458,7 +583,8 @@ void weightyAimInit(void)
 		// built-in preset would otherwise never reach existing players
 		if (preset == WEIGHTYAIM_PRESET_WEIGHTY
 				|| preset == WEIGHTYAIM_PRESET_IMMERSIVE
-				|| preset == WEIGHTYAIM_PRESET_BORING) {
+				|| preset == WEIGHTYAIM_PRESET_BORING
+				|| preset == WEIGHTYAIM_PRESET_ARCADE) {
 			weightyAimApplyPreset(j, preset);
 		}
 	}
@@ -784,6 +910,7 @@ static void weightyAimResetState(struct weightyaimstate *st)
 	st->idletime = 0.f;
 	st->leadramp = 0.f;
 	st->leadinput = 0.f;
+	st->edgetime = 0.f;
 	st->sway[0] = st->sway[1] = 0.f;
 }
 
@@ -800,6 +927,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 	f32 gyrodeg[2] = { 0.f, 0.f };
 	f32 stickrate[2], stickdeg[2], mousedeg[2], reqdeg[2], camdeg[2] = { 0.f, 0.f };
 	bool active;
+
+	// Arcade's own reticle settings (or yours) follow the current preset
+	weightyAimSyncReticle(g_Vars.currentplayerstats->mpindex);
 
 	if (dt60 <= 0.f || mlookscale <= 0.f || fovscale <= 0.f) {
 		// paused or no time passed; keep the crosshair where it is
@@ -926,6 +1056,24 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 		const f32 zx = clampf(ec->deadzonex, 0.05f, 45.f);
 		const f32 zy = clampf(ec->deadzoney, 0.05f, 45.f);
 		f32 reqlen, ellipse;
+		bool autoedge;
+
+		// Edge Auto-Turn applies to the input that moved the reticle last
+		// (by default mouse and gyro; a held stick keeps turning by itself)
+		{
+			const f32 sm = bc_fabsf(stickdeg[0]) + bc_fabsf(stickdeg[1]);
+			const f32 gm = bc_fabsf(gyrodeg[0]) + bc_fabsf(gyrodeg[1]);
+			const f32 mm = bc_fabsf(mousedeg[0] - gyrodeg[0]) + bc_fabsf(mousedeg[1] - gyrodeg[1]);
+
+			if (sm + gm + mm > 0.0001f) {
+				st->lastinput = sm >= gm && sm >= mm ? WEIGHTYAIM_INPUT_STICK
+					: gm >= mm ? WEIGHTYAIM_INPUT_GYRO : WEIGHTYAIM_INPUT_MOUSE;
+			}
+
+			autoedge = ec->edgeturnspeed > 0.001f && ads < 0.5f
+				&& (st->lastinput == WEIGHTYAIM_INPUT_MOUSE ? ec->edgemouse
+					: st->lastinput == WEIGHTYAIM_INPUT_GYRO ? ec->edgegyro : ec->edgestick);
+		}
 
 		// 1. Every look movement is split: part turns the camera right away (so the
 		//    view always answers the stick), the rest moves the gun inside the zone.
@@ -945,14 +1093,17 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			}
 
 			// 2. Whatever pushes the gun past the edge of the zone goes into the
-			//    overflow, and the camera eases into it below (edge smoothing)
+			//    overflow, and the camera eases into it below (edge smoothing).
+			//    With Edge Auto-Turn the auto-turn does the turning, and only a
+			//    small share of your own push still adds to it (Edge Input Influence).
 			ellipse = (st->target[0] / zx) * (st->target[0] / zx) + (st->target[1] / zy) * (st->target[1] / zy);
 
 			if (ellipse > 1.f) {
 				const f32 scale = 1.f / bc_sqrtf(ellipse);
+				const f32 keep = autoedge ? clampf(ec->edgeinfluence, 0.f, 1.f) : 1.f;
 
-				st->over[0] += st->target[0] - st->target[0] * scale;
-				st->over[1] += st->target[1] - st->target[1] * scale;
+				st->over[0] += (st->target[0] - st->target[0] * scale) * keep;
+				st->over[1] += (st->target[1] - st->target[1] * scale) * keep;
 				st->target[0] *= scale;
 				st->target[1] *= scale;
 			}
@@ -1017,6 +1168,32 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 			}
 		}
 
+		// 3b. Edge Auto-Turn (Wii-shooter style): while the reticle rests in a band
+		//     at the edge of the zone, the view keeps turning on its own, faster
+		//     the closer to the edge, so mouse and gyro players don't have to keep
+		//     moving and re-centring. It waits a moment first, so aiming at
+		//     something near the edge doesn't swing the view straight away. The
+		//     reticle stays put on screen while the view turns under it.
+		bool autoturning = false;
+		{
+			const f32 nx = st->target[0] / zx;
+			const f32 ny = st->target[1] / zy;
+			const f32 e = bc_sqrtf(nx * nx + ny * ny);
+			const f32 band = clampf(ec->edgeband, 0.05f, 0.9f);
+			const f32 t = autoedge && e > 0.0001f ? clampf((e - (1.f - band)) / band, 0.f, 1.f) : 0.f;
+
+			st->edgetime = t > 0.f ? st->edgetime + dtsec : 0.f;
+
+			if (t > 0.f && st->edgetime > WEIGHTYAIM_EDGE_TURN_DELAY) {
+				const f32 ease = clampf((st->edgetime - WEIGHTYAIM_EDGE_TURN_DELAY) / WEIGHTYAIM_EDGE_TURN_EASE, 0.f, 1.f);
+				const f32 speed = ec->edgeturnspeed * t * t * (3.f - 2.f * t) * ease;
+
+				camdeg[0] += nx / e * speed * dtsec;
+				camdeg[1] += ny / e * speed * dtsec * clampf(ec->edgevertical, 0.f, 1.f);
+				autoturning = true;
+			}
+		}
+
 		// 4. The camera drifts toward where the gun points, so it never sits dead still.
 		//    While aiming it leads gently (stronger near the edge of the zone), and
 		//    after a moment idle it catches up. The gun stays on the same spot in the
@@ -1049,8 +1226,9 @@ void weightyAimFilterLook(s32 *analogturn, s32 *analogpitch, f32 *freelookdx, f3
 				st->leadinput += (input - st->leadinput) * (1.f - bc_expf(-dtsec / WEIGHTYAIM_LEAD_INPUT_SMOOTH));
 			}
 
-			if (edgeturn) {
-				// already turning from the edge; leading as well would slow that turn down
+			if (edgeturn || autoturning) {
+				// already turning from the edge; leading or catching up as well would
+				// slow that turn down (and would pull the reticle out of the auto-turn band)
 				rate = 0.f;
 			} else if (st->idletime > ec->recenterdelay) {
 				// catch-up eases in instead of kicking in at full speed
@@ -1968,6 +2146,14 @@ static const struct weightyaimcfgfield g_WeightyAimCfgFields[] = {
 	WA_FLOAT("AdsHeight",     adsheight,     -10.f, 10.f),
 	WA_FLOAT("AdsMoveSpeed",  adsmovespeed,  0.1f, 1.f),
 	WA_FLOAT("AdsSensitivity", adssens,      0.1f, 1.f),
+	WA_FLOAT("EdgeTurnSpeed", edgeturnspeed, 0.f, 360.f),
+	WA_FLOAT("EdgeBand",      edgeband,      0.05f, 0.9f),
+	WA_FLOAT("EdgeInfluence", edgeinfluence, 0.f, 1.f),
+	WA_FLOAT("EdgeVertical",  edgevertical,  0.f, 1.f),
+	WA_INT  ("EdgeMouse",     edgemouse,     0, 1),
+	WA_INT  ("EdgeGyro",      edgegyro,      0, 1),
+	WA_INT  ("EdgeStick",     edgestick,     0, 1),
+	WA_INT  ("ReticleProfile", reticleprofile, 0, 1),
 };
 
 static void weightyAimRegisterCfg(const char *prefix, struct weightyaimcfg *cfg)
@@ -2014,6 +2200,22 @@ PD_CONSTRUCTOR static void weightyAimConfigInit(void)
 		configRegisterFloat(strFmt("WeightyAim.Player%d.AimAssistStrength", i), &g_WeightyAimAssistStrength[j], 0.f, 1.f);
 		g_WeightyAimSmoothReticle[j] = 0;
 		configRegisterInt(strFmt("WeightyAim.Player%d.SmoothReticle", i), &g_WeightyAimSmoothReticle[j], 0, 1);
+
+		// reticle profiles: your normal reticle, and Arcade's (smooth, a size up, more opaque)
+		g_WeightyAimReticleProfiles[j][0].size = 2;
+		g_WeightyAimReticleProfiles[j][0].opacity = 0x28;
+		g_WeightyAimReticleProfiles[j][0].smooth = 0;
+		g_WeightyAimReticleProfiles[j][1].size = 3;
+		g_WeightyAimReticleProfiles[j][1].opacity = 0x50;
+		g_WeightyAimReticleProfiles[j][1].smooth = 1;
+		g_WeightyAimReticleLive[j] = 0;
+		configRegisterInt(strFmt("WeightyAim.Player%d.ReticleLiveProfile", i), &g_WeightyAimReticleLive[j], 0, 1);
+		for (s32 r = 0; r < 2; r++) {
+			const char *name = r ? "Arcade" : "Normal";
+			configRegisterInt(strFmt("WeightyAim.Player%d.%sReticleSize", i, name), &g_WeightyAimReticleProfiles[j][r].size, 0, 4);
+			configRegisterInt(strFmt("WeightyAim.Player%d.%sReticleOpacity", i, name), &g_WeightyAimReticleProfiles[j][r].opacity, 0, 255);
+			configRegisterInt(strFmt("WeightyAim.Player%d.%sReticleSmooth", i, name), &g_WeightyAimReticleProfiles[j][r].smooth, 0, 1);
+		}
 
 		g_WeightyAimGyroCfg[j] = g_WeightyAimGyroDefaults;
 		configRegisterInt(strFmt("WeightyAim.Player%d.GyroMode", i), &g_WeightyAimGyroCfg[j].mode, 0, WEIGHTYAIM_NUM_GYROMODES - 1);
