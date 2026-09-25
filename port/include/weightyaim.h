@@ -296,7 +296,8 @@ void weightyAimGetCrosshair(f32 *x, f32 *y);
 bool weightyAimHideCrosshair(void);
 bool weightyAimForceCrosshair(void);
 bool weightyAimSmoothReticle(void);
-void weightyAimSyncReticle(s32 cfgindex); // swap in the reticle settings of the preset's reticle profile // Smooth Reticle: draw at quarter-pixel steps instead of whole N64 pixels
+void weightyAimSyncReticle(s32 cfgindex);
+void weightyAimResetReticle(s32 cfgindex); // reticle size, opacity, colour and smoothing back to defaults // swap in the reticle settings of the preset's reticle profile // Smooth Reticle: draw at quarter-pixel steps instead of whole N64 pixels
 extern s32 g_WeightyAimSmoothReticle[4];
 
 /*

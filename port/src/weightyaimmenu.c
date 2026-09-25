@@ -1035,6 +1035,15 @@ static MenuItemHandlerResult menuhandlerWeightyAimSmoothReticle(s32 operation, s
 	return 0;
 }
 
+static MenuItemHandlerResult menuhandlerWeightyAimReticleReset(s32 operation, struct menuitem *item, union handlerdata *data)
+{
+	if (operation == MENUOP_SET) {
+		weightyAimResetReticle(optionsGetExtMenuPlayer());
+	}
+
+	return 0;
+}
+
 struct menuitem g_WeightyAimReticleMenuItems[] = {
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Hip-Fire Reticle", 0, menuhandlerWeightyAimCrosshair },
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle While Aiming", 0, menuhandlerWeightyAimAimCrosshair },
@@ -1044,6 +1053,7 @@ struct menuitem g_WeightyAimReticleMenuItems[] = {
 	{ MENUITEMTYPE_CHECKBOX, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Smooth Reticle", 0, menuhandlerWeightyAimSmoothReticle },
 	WEIGHTYAIM_SUBPAGE("Reticle Colour...\n", g_ExtendedGameCrosshairColourMenuDialog),
 	{ MENUITEMTYPE_DROPDOWN, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reticle Colour by Health", 0, menuhandlerCrosshairHealth },
+	{ MENUITEMTYPE_SELECTABLE, 0, MENUITEMFLAG_LITERAL_TEXT, (uintptr_t)"Reset Reticle Settings\n", 0, menuhandlerWeightyAimReticleReset },
 	WEIGHTYAIM_BACK,
 };
 

@@ -514,6 +514,25 @@ void weightyAimSyncReticle(s32 cfgindex)
 	g_WeightyAimReticleLive[idx] = want;
 }
 
+/**
+ * Reset Reticle Settings: size, opacity, colour, colour by health and Smooth
+ * Reticle back to their defaults. On Arcade's reticle that's Arcade's own
+ * (bigger, more opaque, smooth), otherwise the game's usual reticle. Whether
+ * the reticle shows (hip-fire / while aiming) belongs to the preset and is
+ * left alone.
+ */
+void weightyAimResetReticle(s32 cfgindex)
+{
+	const s32 idx = cfgindex & 3;
+	const s32 arcade = g_WeightyAimReticleLive[idx] ? 1 : 0;
+	struct extplayerconfig *pc = &g_PlayerExtCfg[idx];
+
+	pc->crosshairsize = arcade ? 3 : 2;
+	pc->crosshaircolour = 0x00ff0000 | (arcade ? 0x50 : 0x28);
+	pc->crosshairhealth = CROSSHAIR_HEALTH_OFF;
+	g_WeightyAimSmoothReticle[idx] = arcade;
+}
+
 void weightyAimApplyPreset(s32 cfgindex, s32 preset)
 {
 	const s32 idx = cfgindex & 3;
