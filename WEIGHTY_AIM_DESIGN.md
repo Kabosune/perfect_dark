@@ -324,9 +324,10 @@ from Control Options (`mainmenu.c`) and from shortcuts in `optionsmenu.c`.
 
 ### Notes for AI assistants
 
-- Commit messages must not include a session or conversation link, a
-  `Co-Authored-By` line, or any other Claude/Anthropic credit. AI help is
-  credited once in the README as "AI assistance (Claude Opus 5.5)".
+- This mod is developed with AI assistance (Claude Opus 5.5), credited in
+  the README. Commits made with AI help end with:
+  Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+  Don't add session or conversation links to commit messages.
 - Don't rewrite history, amend or re-author the owner's commits.
 - Prefer small, targeted edits. When the owner says "no testing" or "just
   compile", do exactly that.
