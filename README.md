@@ -1,3 +1,18 @@
+# Weighty Aim
+
+A mod for the Perfect Dark PC port that makes aiming feel physical, in the spirit of Bodycam: a free-aim zone where the gun moves before the camera turns, gun weight and sway, aim down sights, an Arcade (Wii / rail-shooter) preset with edge turning, stick curves, gyro aim, and reticle options. There's also a Force Original mode for 1:1 original aiming.
+
+**This is a public beta.**
+
+- **Download:** latest pre-release on the [Releases](../../releases) page
+- **Players:** read the [beta guide](WEIGHTY_AIM_BETA.md) for install, settings and what to test
+- **Bugs:** report them on the [Issues](../../issues) tab
+- **Developers:** see the [design notes](WEIGHTY_AIM_DESIGN.md)
+
+Weighty Aim is by Kabosune/KaboWabo (me :3), developed with AI assistance (Claude Opus 5.5). It's built on [fgsfdsfgs/perfect_dark](https://github.com/fgsfdsfgs/perfect_dark); the original port's README follows below.
+
+---
+
 # Perfect Dark port
 
 This repository contains a work-in-progress port of the [Perfect Dark decompilation](https://github.com/n64decomp/perfect_dark) to modern platforms.
