@@ -128,8 +128,8 @@ Time uses `g_Vars.lvupdate60freal`, so everything is frame-rate independent.
 Main preset traits:
 
 - **Weighty:** Modern, d-pad movement while aiming, deadzone 7.5/4.5, camera
-  share 0.4, gun response 8.5, damping 0.7, turn drag 0.35, catch-up 0.4.
-- **Immersive:** Modern, stick movement, no crosshair while aiming, lasers
+  share 0.5, gun response 8.5, damping 0.7, turn drag 0.35, catch-up 0.4.
+- **Immersive:** Modern, camera share 0.5, stick movement, no crosshair while aiming, lasers
   on, slower gun (4.6), more drag (0.6), less sway.
 - **Boring:** Modern, full movement, camera share 1 (no free-aim feel).
 - **Classic:** mod off, the game's original aiming.
@@ -237,8 +237,9 @@ from Control Options (`mainmenu.c`) and from shortcuts in `optionsmenu.c`.
 
 ### Notes for AI assistants
 
-- Commit messages must not include a session or conversation link. A
-  `Co-Authored-By: Claude` line is fine.
+- Commit messages must not include a session or conversation link, a
+  `Co-Authored-By` line, or any other Claude/Anthropic credit. AI help is
+  credited once in the README as "AI assistance (Claude Opus 5.5)".
 - Don't rewrite history, amend or re-author the owner's commits.
 - Prefer small, targeted edits. When the owner says "no testing" or "just
   compile", do exactly that.

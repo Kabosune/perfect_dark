@@ -211,4 +211,5 @@ It might be possible to build and run the game on platforms that are not specifi
 * Raf for the 64-bit port;
 * NicNamSam for the icon;
 * everyone who has submitted pull requests and issues to this repository and tested the port;
+* Weighty Aim mod by Kabosune, developed with AI assistance (Claude Opus 5.5);
 * probably more I'm forgetting.
